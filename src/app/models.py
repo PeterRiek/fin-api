@@ -1,50 +1,57 @@
-from sqlalchemy import ForeignKey, String
+from datetime import date as dt_date, datetime
+
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import date as dt_date
 
 
 class Base(DeclarativeBase):
     pass
 
 
-class Account(Base):
-    __tablename__ = "accounts"
+class User(Base):
+    __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    space_links: Mapped[list["SpaceUser"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class SpaceUser(Base):
+    __tablename__ = "space_users"
+    __table_args__ = (UniqueConstraint("space_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(
+        ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    is_owner: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+    space: Mapped["Space"] = relationship(back_populates="user_links")
+    user: Mapped["User"] = relationship(back_populates="space_links")
+
+
+class Space(Base):
+    __tablename__ = "spaces"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    user_links: Mapped[list["SpaceUser"]] = relationship(
+        back_populates="space", cascade="all, delete-orphan"
+    )
     transactions: Mapped[list["Transaction"]] = relationship(
-        "Transaction", back_populates="account"
-    )
-
-
-class Category(Base):
-    __tablename__ = "categories"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    transactions: Mapped[list["Transaction"]] = relationship(
-        "Transaction", secondary="transaction_categories", back_populates="categories"
-    )
-
-
-class Person(Base):
-    __tablename__ = "persons"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    contributions: Mapped[list["Contribution"]] = relationship(
-        "Contribution", back_populates="person"
-    )
-
-
-class TransactionCategories(Base):
-    __tablename__ = "transaction_categories"
-
-    transaction_id: Mapped[int] = mapped_column(
-        ForeignKey("transactions.id"), primary_key=True
-    )
-    category_id: Mapped[int] = mapped_column(
-        ForeignKey("categories.id"), primary_key=True
+        back_populates="space", cascade="all, delete-orphan"
     )
 
 
@@ -52,31 +59,60 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    space_id: Mapped[int] = mapped_column(
+            ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False
+            )
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date: Mapped[dt_date] = mapped_column(nullable=False)
-    amount: Mapped[int] = mapped_column(nullable=False)
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), nullable=False)
-    account: Mapped["Account"] = relationship("Account", back_populates="transactions")
-    categories: Mapped[list["Category"]] = relationship(
-        "Category", secondary="transaction_categories", back_populates="transactions"
-    )
-    contributions: Mapped[list["Contribution"]] = relationship(
-        "Contribution", back_populates="transaction", cascade="all, delete-orphan"
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    space: Mapped["Space"] = relationship(back_populates="transactions")
+    account_links: Mapped[list["AccountTransaction"]] = relationship(
+        back_populates="transaction", cascade="all, delete-orphan"
     )
 
 
-class Contribution(Base):
-    __tablename__ = "contributions"
+class AccountTransaction(Base):
+    __tablename__ = "account_transactions"
+
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    transaction_id: Mapped[int] = mapped_column(
+        ForeignKey("transactions.id", ondelete="CASCADE"), primary_key=True
+    )
+    amount_requested: Mapped[float] = mapped_column(nullable=False)
+    amount_paid: Mapped[float] = mapped_column(nullable=False)
+    is_initial: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+    account: Mapped["Account"] = relationship(back_populates="transaction_links")
+    transaction: Mapped["Transaction"] = relationship(back_populates="account_links")
+
+
+class Account(Base):
+    __tablename__ = "accounts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    transaction_id: Mapped[int] = mapped_column(
-        ForeignKey("transactions.id"), nullable=False
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id", ondelete="CASCADE"), nullable=False
     )
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False)
-    amount: Mapped[int] = mapped_column(nullable=False)
-    amount_paid: Mapped[int] = mapped_column(nullable=False)
-    transaction: Mapped["Transaction"] = relationship(
-        "Transaction", back_populates="contributions"
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    person: Mapped["Person"] = relationship(back_populates="accounts")
+    transaction_links: Mapped[list["AccountTransaction"]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
     )
-    person: Mapped["Person"] = relationship("Person", back_populates="contributions")
+
+
+class Person(Base):
+    __tablename__ = "persons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    accounts: Mapped[list["Account"]] = relationship(
+        back_populates="person", cascade="all, delete-orphan"
+    )

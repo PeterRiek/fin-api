@@ -1,8 +1,31 @@
-from app.models import Base, Transaction, Account, Category, Person, Contribution
-from app.schemas import AccountResponse, CategoryResponse, PersonResponse, TransactionCreate, TransactionResponse
+from contextlib import contextmanager
+from datetime import datetime
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from contextlib import contextmanager
+
+from app.models import (
+    Account,
+    Base,
+    Person,
+    Space,
+    Transaction,
+    User,
+)
+from app.schemas import (
+    AccountCreate,
+    AccountOut,
+    PersonCreate,
+    PersonOut,
+    SpaceCreate,
+    SpaceOut,
+    TransactionCreate,
+    TransactionOut,
+    UserCreate,
+    UserOut,
+)
+
+hash_password = lambda password: password  # Placeholder for actual hashing function
 
 
 class Database:
@@ -23,211 +46,205 @@ class Database:
         finally:
             s.close()
 
-    # --- Accounts ---
+    # ---------- User ----------
 
-    def insert_account(self, name: str) -> int:
+    def insert_user(self, data: UserCreate) -> UserOut:
         with self.session() as s:
-            account = Account(name=name)
-            s.add(account)
+            user = User(
+                username=data.username,
+                email=data.email,
+                password_hash=hash_password(data.password),  # hash before storing
+                created_at=datetime.now(),
+            )
+            s.add(user)
             s.flush()
-            assert account.id is not None
-            return account.id
+            return UserOut.model_validate(user)  # built while session is still open
 
-    def get_account(self, id: int) -> AccountResponse | None:
+    def get_user(self, user_id: int) -> UserOut | None:
         with self.session() as s:
-            row = s.query(Account).filter_by(id=id).first()
-            return AccountResponse.model_validate(row) if row else None
+            row = s.query(User).filter_by(id=user_id).first()
+            return UserOut.model_validate(row) if row else None
 
-    def get_accounts(self) -> list[AccountResponse]:
+    def get_users(self) -> list[UserOut]:
         with self.session() as s:
-            rows = s.query(Account).all()
-            return [AccountResponse.model_validate(r) for r in rows]
+            rows = s.query(User).all()
+            return [UserOut.model_validate(r) for r in rows]
 
-    def update_account(self, id: int, name: str) -> bool:
+    def update_user(self, user_id: int, data: UserCreate) -> bool:
         with self.session() as s:
-            account = s.query(Account).filter_by(id=id).first()
-            if not account:
+            user = s.query(User).filter_by(id=user_id).first()
+            if not user:
                 return False
-            account.name = name
+            user.username = data.username
+            user.email = data.email
+            user.password_hash = hash_password(data.password)
             return True
 
-    def delete_account(self, id: int) -> bool:
+    def delete_user(self, user_id: int) -> bool:
         with self.session() as s:
-            account = s.query(Account).filter_by(id=id).first()
-            if not account:
+            user = s.query(User).filter_by(id=user_id).first()
+            if not user:
                 return False
-            s.delete(account)
+            s.delete(user)
             return True
 
-    # --- Categories ---
+    # ---------- Person ----------
 
-    def insert_category(self, name: str) -> int:
+    def insert_person(self, data: PersonCreate) -> PersonOut:
         with self.session() as s:
-            category = Category(name=name)
-            s.add(category)
-            s.flush()
-            assert category.id is not None
-            return category.id
-
-    def get_category(self, id: int) -> CategoryResponse | None:
-        with self.session() as s:
-            row = s.query(Category).filter_by(id=id).first()
-            return CategoryResponse.model_validate(row) if row else None
-
-    def get_categories(self) -> list[CategoryResponse]:
-        with self.session() as s:
-            rows = s.query(Category).all()
-            return [CategoryResponse.model_validate(r) for r in rows]
-
-    def update_category(self, id: int, name: str) -> bool:
-        with self.session() as s:
-            category = s.query(Category).filter_by(id=id).first()
-            if not category:
-                return False
-            category.name = name
-            return True
-
-    def delete_category(self, id: int) -> bool:
-        with self.session() as s:
-            category = s.query(Category).filter_by(id=id).first()
-            if not category:
-                return False
-            s.delete(category)
-            return True
-
-    # --- Persons ---
-
-    def insert_person(self, name: str) -> int:
-        with self.session() as s:
-            person = Person(name=name)
+            person = Person(
+                name=data.name,
+                created_at=datetime.now(),
+            )
             s.add(person)
             s.flush()
-            assert person.id is not None
-            return person.id
+            return PersonOut.model_validate(person)
 
-    def get_person(self, id: int) -> PersonResponse | None:
+    def get_person(self, person_id: int) -> PersonOut | None:
         with self.session() as s:
-            row = s.query(Person).filter_by(id=id).first()
-            return PersonResponse.model_validate(row) if row else None
+            row = s.query(Person).filter_by(id=person_id).first()
+            return PersonOut.model_validate(row) if row else None
 
-    def get_persons(self) -> list[PersonResponse]:
+    def get_persons(self) -> list[PersonOut]:
         with self.session() as s:
             rows = s.query(Person).all()
-            return [PersonResponse.model_validate(r) for r in rows]
+            return [PersonOut.model_validate(r) for r in rows]
 
-    def update_person(self, id: int, name: str) -> bool:
+    def update_person(self, person_id: int, data: PersonCreate) -> bool:
         with self.session() as s:
-            person = s.query(Person).filter_by(id=id).first()
+            person = s.query(Person).filter_by(id=person_id).first()
             if not person:
                 return False
-            person.name = name
+            person.name = data.name
             return True
 
-    def delete_person(self, id: int) -> bool:
+    def delete_person(self, person_id: int) -> bool:
         with self.session() as s:
-            person = s.query(Person).filter_by(id=id).first()
+            person = s.query(Person).filter_by(id=person_id).first()
             if not person:
                 return False
             s.delete(person)
             return True
 
-    # --- Transactions ---
+    # ---------- Account ----------
 
-    def insert_transaction(self, data: TransactionCreate) -> int:
+    def insert_account(self, data: AccountCreate) -> AccountOut:
         with self.session() as s:
-            account = s.query(Account).filter_by(name=data.account).first()
+            account = Account(
+                name=data.name,
+                person_id=data.person_id,
+                created_at=datetime.now(),
+            )
+            s.add(account)
+            s.flush()
+            return AccountOut.model_validate(account)
+
+    def get_account(self, account_id: int) -> AccountOut | None:
+        with self.session() as s:
+            row = s.query(Account).filter_by(id=account_id).first()
+            return AccountOut.model_validate(row) if row else None
+
+    def get_accounts(self) -> list[AccountOut]:
+        with self.session() as s:
+            rows = s.query(Account).all()
+            return [AccountOut.model_validate(r) for r in rows]
+
+    def update_account(self, account_id: int, data: AccountCreate) -> bool:
+        with self.session() as s:
+            account = s.query(Account).filter_by(id=account_id).first()
             if not account:
-                account = Account(name=data.account)
-                s.add(account)
+                return False
+            account.name = data.name
+            account.person_id = data.person_id
+            return True
 
-            categories = []
-            for cat_name in data.categories:
-                cat = s.query(Category).filter_by(name=cat_name).first()
-                if not cat:
-                    cat = Category(name=cat_name)
-                    s.add(cat)
-                categories.append(cat)
+    def delete_account(self, account_id: int) -> bool:
+        with self.session() as s:
+            account = s.query(Account).filter_by(id=account_id).first()
+            if not account:
+                return False
+            s.delete(account)
+            return True
 
-            contributions = []
-            for c in data.contributions:
-                person = s.query(Person).filter_by(name=c.person).first()
-                if not person:
-                    person = Person(name=c.person)
-                    s.add(person)
-                contributions.append(
-                    Contribution(
-                        person=person, amount=c.amount, amount_paid=c.amount_paid
-                    )
-                )
+    # ---------- Space ----------
 
+    def insert_space(self, data: SpaceCreate) -> SpaceOut:
+        with self.session() as s:
+            space = Space(
+                name=data.name,
+                description=data.description,
+                created_at=datetime.now(),
+            )
+            s.add(space)
+            s.flush()
+            return SpaceOut.model_validate(space)
+
+    def get_space(self, space_id: int) -> SpaceOut | None:
+        with self.session() as s:
+            row = s.query(Space).filter_by(id=space_id).first()
+            return SpaceOut.model_validate(row) if row else None
+
+    def get_spaces(self) -> list[SpaceOut]:
+        with self.session() as s:
+            rows = s.query(Space).all()
+            return [SpaceOut.model_validate(r) for r in rows]
+
+    def update_space(self, space_id: int, data: SpaceCreate) -> bool:
+        with self.session() as s:
+            space = s.query(Space).filter_by(id=space_id).first()
+            if not space:
+                return False
+            space.name = data.name
+            space.description = data.description if data.description else ""
+            return True
+
+    def delete_space(self, space_id: int) -> bool:
+        with self.session() as s:
+            space = s.query(Space).filter_by(id=space_id).first()
+            if not space:
+                return False
+            s.delete(space)
+            return True
+
+    # ---------- Transaction ----------
+
+    def insert_transaction(self, data: TransactionCreate) -> TransactionOut:
+        with self.session() as s:
             transaction = Transaction(
+                space_id=data.space_id,
                 title=data.title,
                 description=data.description,
                 date=data.date,
-                amount=data.amount,
-                account=account,
-                categories=categories,
-                contributions=contributions,
+                created_at=datetime.now(),
             )
             s.add(transaction)
             s.flush()
-            assert transaction.id is not None
-            return transaction.id
+            return TransactionOut.model_validate(transaction)
 
-    def get_transaction(self, id: int) -> TransactionResponse | None:
+    def get_transaction(self, transaction_id: int) -> TransactionOut | None:
         with self.session() as s:
-            row = s.query(Transaction).filter_by(id=id).first()
-            return TransactionResponse.model_validate(row) if row else None
+            row = s.query(Transaction).filter_by(id=transaction_id).first()
+            return TransactionOut.model_validate(row) if row else None
 
-    def get_transactions(self) -> list[TransactionResponse]:
+    def get_transactions(self) -> list[TransactionOut]:
         with self.session() as s:
             rows = s.query(Transaction).all()
-            return [TransactionResponse.model_validate(r) for r in rows]
+            return [TransactionOut.model_validate(r) for r in rows]
 
-    def update_transaction(self, id: int, data: TransactionCreate) -> bool:
+    def update_transaction(self, transaction_id: int, data: TransactionCreate) -> bool:
         with self.session() as s:
-            transaction = s.query(Transaction).filter_by(id=id).first()
+            transaction = s.query(Transaction).filter_by(id=transaction_id).first()
             if not transaction:
                 return False
-
-            account = s.query(Account).filter_by(name=data.account).first()
-            if not account:
-                account = Account(name=data.account)
-                s.add(account)
-
-            categories = []
-            for cat_name in data.categories:
-                cat = s.query(Category).filter_by(name=cat_name).first()
-                if not cat:
-                    cat = Category(name=cat_name)
-                    s.add(cat)
-                categories.append(cat)
-
-            # Replace contributions (cascade delete-orphan handles old ones)
-            new_contributions = []
-            for c in data.contributions:
-                person = s.query(Person).filter_by(name=c.person).first()
-                if not person:
-                    person = Person(name=c.person)
-                    s.add(person)
-                new_contributions.append(
-                    Contribution(
-                        person=person, amount=c.amount, amount_paid=c.amount_paid
-                    )
-                )
-
+            transaction.space_id = data.space_id
             transaction.title = data.title
             transaction.description = data.description
             transaction.date = data.date
-            transaction.amount = data.amount
-            transaction.account = account
-            transaction.categories = categories
-            transaction.contributions = new_contributions
             return True
 
-    def delete_transaction(self, id: int) -> bool:
+    def delete_transaction(self, transaction_id: int) -> bool:
         with self.session() as s:
-            transaction = s.query(Transaction).filter_by(id=id).first()
+            transaction = s.query(Transaction).filter_by(id=transaction_id).first()
             if not transaction:
                 return False
             s.delete(transaction)
