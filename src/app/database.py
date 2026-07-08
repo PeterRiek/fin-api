@@ -75,6 +75,11 @@ class Database:
             row = s.query(User).filter_by(id=user_id).first()
             return UserOut.model_validate(row) if row else None
 
+    def get_user_by_username(self, username: str) -> UserOut | None:
+        with self.session() as s:
+            row = s.query(User).filter_by(username=username).first()
+            return UserOut.model_validate(row) if row else None
+
     def get_users(self) -> list[UserOut]:
         with self.session() as s:
             rows = s.query(User).all()
@@ -197,6 +202,17 @@ class Database:
     def get_spaces(self) -> list[SpaceOut]:
         with self.session() as s:
             rows = s.query(Space).all()
+            return [SpaceOut.model_validate(r) for r in rows]
+
+    def get_spaces_by_user(self, user_id: int) -> list[SpaceOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Space)
+                .join(SpaceUser, Space.id == SpaceUser.space_id)
+                .filter(SpaceUser.user_id == user_id)
+                .all()
+            )
+
             return [SpaceOut.model_validate(r) for r in rows]
 
     def update_space(self, space_id: int, data: SpaceCreate) -> bool:

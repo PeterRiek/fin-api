@@ -1,9 +1,5 @@
-from fastapi import FastAPI
-
-
-from app.database import Database
 from app.dependencies import get_db
-from app.schemas import UserCreate
+from app.schemas import SpaceCreate, SpaceUserCreate, UserCreate
 
 
 # app = FastAPI()
@@ -22,25 +18,53 @@ from app.schemas import UserCreate
 if __name__ == "__main__":
     db = get_db()
 
+    user = None
+
+    def create_user(username):
+        email = input("Enter email: ")
+        password = input("Enter password: ")
+        usercreate = UserCreate(username=username, email=email, password=password)
+        user = db.insert_user(data=usercreate)
+        print("created user", username)
+        return user
+
     username = input("Enter username: ")
-    email = input("Enter email: ")
-    password = input("Enter password: ")
+
+    user = db.get_user_by_username(username=username)
+    if user is None:
+        print("user not found, creating new user", username)
+        user = create_user(username)
+
+    print("signed in as", user.username)
+
+    spaces = db.get_spaces_by_user(user.id)
+    print("Available spaces:", ",".join([s.name for s in spaces]))
+    selected_space = None
+
+    while True:
+        prefix = f"({user.username}){f" ({selected_space.name})" if selected_space else ''}"
+        selection = input(f"{prefix} Enter 'q' to quit or 'h' for help: ")
+        if selection == "q":
+            print("quitting")
+            break
+        if selection == "s":
+            spaces = db.get_spaces_by_user(user.id)
+            print("Available spaces:", ",".join([s.name for s in spaces]))
+            name = input("Select space: ")
+            if name not in [s.name for s in spaces]:
+                print("space not found")
+                continue
+            selected_space = next(s for s in spaces if s.name == name)
+
+            
+        if selection == "ss":
+            print("creating new space")
+            name = input("space name: ")
+            spacecreate = SpaceCreate(name=name)
+            selected_space = db.insert_space(data=spacecreate)
+            spaceusercreate = SpaceUserCreate(space_id=selected_space.id, user_id=user.id, is_owner=True)
+            db.insert_space_user(data=spaceusercreate)
+            print("creaeting space user", spaceusercreate)
 
 
-    usercreate = UserCreate(username=username, email=email, password=password)
-    user_id = db.insert_user(data=usercreate).id
-    user = db.get_user(user_id)
-    if not user: 
-        print(f"user with ID {user_id} not found.")
-    else:
-        print(f"Inserted user: {user.email} with ID: {user.id}")
 
-
-"""
-terminal based input loop
-enter username in beginning wich will be used
-
-
-"""
-def add_entry(db: Database, user_id, space_id):
-    pass
