@@ -1,4 +1,3 @@
-
 """
 routes
 - auth/user creation login
@@ -7,3 +6,8 @@ routes
 - accounts
 - persons
 """
+
+from app.routes.auth import auth_router
+from app.routes.split import split_router
+
+__all__ = ["auth_router", "split_router"]

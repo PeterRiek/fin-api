@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 # ---------- User ----------
 
+
 class UserCreate(BaseModel):
     username: str
     email: str
@@ -23,6 +24,7 @@ class UserOut(BaseModel):
 
 # ---------- Person ----------
 
+
 class PersonCreate(BaseModel):
     name: str
 
@@ -36,6 +38,7 @@ class PersonOut(BaseModel):
 
 
 # ---------- Account ----------
+
 
 class AccountCreate(BaseModel):
     name: str
@@ -53,6 +56,7 @@ class AccountOut(BaseModel):
 
 # ---------- Space ----------
 
+
 class SpaceCreate(BaseModel):
     name: str
     description: str | None = None
@@ -69,6 +73,7 @@ class SpaceOut(BaseModel):
 
 # ---------- SpaceUser ----------
 
+
 class SpaceUserCreate(BaseModel):
     space_id: int
     user_id: int
@@ -84,6 +89,7 @@ class SpaceUserOut(BaseModel):
 
 
 # ---------- Transaction ----------
+
 
 class TransactionCreate(BaseModel):
     space_id: int
@@ -105,6 +111,7 @@ class TransactionOut(BaseModel):
 
 # ---------- AccountTransaction ----------
 
+
 class AccountTransactionCreate(BaseModel):
     account_id: int
     transaction_id: int
@@ -125,11 +132,21 @@ class AccountTransactionOut(BaseModel):
 
 # ---------- PersonSpace ----------
 
+
 class PersonSpaceCreate(BaseModel):
     person_id: int
     space_id: int
+
 
 class PersonSpaceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     person_id: int
     space_id: int
+
+
+# --------- Authentication ----------
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

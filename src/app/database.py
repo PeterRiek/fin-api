@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 
+from app.security import hash_password, verify_password
 from app.schemas import (
     PersonSpaceCreate,
     PersonSpaceOut,
@@ -33,9 +34,6 @@ from app.schemas import (
     AccountTransactionCreate,
     AccountTransactionOut,
 )
-
-
-hash_password = lambda password: password  # Placeholder for actual hashing function
 
 
 class Database:
@@ -79,6 +77,13 @@ class Database:
         with self.session() as s:
             row = s.query(User).filter_by(username=username).first()
             return UserOut.model_validate(row) if row else None
+
+    def authenticate_user(self, username: str, password: str) -> UserOut | None:
+        with self.session() as s:
+            row = s.query(User).filter_by(username=username).first()
+            if row is None or not verify_password(password, row.password_hash):
+                return None
+            return UserOut.model_validate(row)
 
     def get_users(self) -> list[UserOut]:
         with self.session() as s:
