@@ -50,6 +50,9 @@ class Space(Base):
     user_links: Mapped[list["SpaceUser"]] = relationship(
         back_populates="space", cascade="all, delete-orphan"
     )
+    person_links: Mapped[list["PersonSpace"]] = relationship(
+        back_populates="space", cascade="all, delete-orphan"
+    )
     transactions: Mapped[list["Transaction"]] = relationship(
         back_populates="space", cascade="all, delete-orphan"
     )
@@ -60,8 +63,8 @@ class Transaction(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     space_id: Mapped[int] = mapped_column(
-            ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False
-            )
+        ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date: Mapped[dt_date] = mapped_column(nullable=False)
@@ -116,3 +119,20 @@ class Person(Base):
     accounts: Mapped[list["Account"]] = relationship(
         back_populates="person", cascade="all, delete-orphan"
     )
+    space_links: Mapped[list["PersonSpace"]] = relationship(
+        back_populates="person", cascade="all, delete-orphan"
+    )
+
+
+class PersonSpace(Base):
+    __tablename__ = "person_spaces"
+
+    __table_args__ = (UniqueConstraint("space_id", "person_id"),)
+    space_id: Mapped[int] = mapped_column(
+        ForeignKey("spaces.id", ondelete="CASCADE"), primary_key=True
+    )
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id", ondelete="CASCADE"), primary_key=True
+    )
+    space: Mapped["Space"] = relationship(back_populates="person_links")
+    person: Mapped["Person"] = relationship(back_populates="space_links")

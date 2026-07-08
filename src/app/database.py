@@ -1,29 +1,39 @@
-from contextlib import contextmanager
 from datetime import datetime
+from app.models import (
+    Base,
+    PersonSpace,
+    User,
+    SpaceUser,
+    Space,
+    Transaction,
+    AccountTransaction,
+    Account,
+    Person,
+)
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from contextlib import contextmanager
 
-from app.models import (
-    Account,
-    Base,
-    Person,
-    Space,
-    Transaction,
-    User,
-)
 from app.schemas import (
-    AccountCreate,
-    AccountOut,
-    PersonCreate,
-    PersonOut,
-    SpaceCreate,
-    SpaceOut,
-    TransactionCreate,
-    TransactionOut,
+    PersonSpaceCreate,
+    PersonSpaceOut,
     UserCreate,
     UserOut,
+    PersonCreate,
+    PersonOut,
+    AccountCreate,
+    AccountOut,
+    SpaceCreate,
+    SpaceOut,
+    SpaceUserCreate,
+    SpaceUserOut,
+    TransactionCreate,
+    TransactionOut,
+    AccountTransactionCreate,
+    AccountTransactionOut,
 )
+
 
 hash_password = lambda password: password  # Placeholder for actual hashing function
 
@@ -206,6 +216,47 @@ class Database:
             s.delete(space)
             return True
 
+    # ---------- SpaceUser ----------
+
+    def insert_space_user(self, data: SpaceUserCreate) -> SpaceUserOut:
+        with self.session() as s:
+            space_user = SpaceUser(
+                space_id=data.space_id,
+                user_id=data.user_id,
+                is_owner=data.is_owner,
+            )
+            s.add(space_user)
+            s.flush()
+            return SpaceUserOut.model_validate(space_user)
+
+    def get_space_user(self, space_user_id: int) -> SpaceUserOut | None:
+        with self.session() as s:
+            row = s.query(SpaceUser).filter_by(id=space_user_id).first()
+            return SpaceUserOut.model_validate(row) if row else None
+
+    def get_space_users(self) -> list[SpaceUserOut]:
+        with self.session() as s:
+            rows = s.query(SpaceUser).all()
+            return [SpaceUserOut.model_validate(r) for r in rows]
+
+    def update_space_user(self, space_user_id: int, data: SpaceUserCreate) -> bool:
+        with self.session() as s:
+            space_user = s.query(SpaceUser).filter_by(id=space_user_id).first()
+            if not space_user:
+                return False
+            space_user.space_id = data.space_id
+            space_user.user_id = data.user_id
+            space_user.is_owner = data.is_owner
+            return True
+
+    def delete_space_user(self, space_user_id: int) -> bool:
+        with self.session() as s:
+            space_user = s.query(SpaceUser).filter_by(id=space_user_id).first()
+            if not space_user:
+                return False
+            s.delete(space_user)
+            return True
+
     # ---------- Transaction ----------
 
     def insert_transaction(self, data: TransactionCreate) -> TransactionOut:
@@ -248,4 +299,118 @@ class Database:
             if not transaction:
                 return False
             s.delete(transaction)
+            return True
+
+    # ---------- AccountTransaction ----------
+
+    def insert_account_transaction(
+        self, data: AccountTransactionCreate
+    ) -> AccountTransactionOut:
+        with self.session() as s:
+            account_transaction = AccountTransaction(
+                account_id=data.account_id,
+                transaction_id=data.transaction_id,
+                amount_requested=data.amount_requested,
+                amount_paid=data.amount_paid,
+                is_initial=data.is_initial,
+            )
+            s.add(account_transaction)
+            s.flush()
+            return AccountTransactionOut.model_validate(account_transaction)
+
+    def get_account_transaction(
+        self, account_id: int, transaction_id: int
+    ) -> AccountTransactionOut | None:
+        with self.session() as s:
+            row = (
+                s.query(AccountTransaction)
+                .filter_by(account_id=account_id, transaction_id=transaction_id)
+                .first()
+            )
+            return AccountTransactionOut.model_validate(row) if row else None
+
+    def get_account_transactions(self) -> list[AccountTransactionOut]:
+        with self.session() as s:
+            rows = s.query(AccountTransaction).all()
+            return [AccountTransactionOut.model_validate(r) for r in rows]
+
+    def update_account_transaction(
+        self, account_id: int, transaction_id: int, data: AccountTransactionCreate
+    ) -> bool:
+        with self.session() as s:
+            account_transaction = (
+                s.query(AccountTransaction)
+                .filter_by(account_id=account_id, transaction_id=transaction_id)
+                .first()
+            )
+            if not account_transaction:
+                return False
+            account_transaction.amount_requested = data.amount_requested
+            account_transaction.amount_paid = data.amount_paid
+            account_transaction.is_initial = data.is_initial
+            return True
+
+    def delete_account_transaction(self, account_id: int, transaction_id: int) -> bool:
+        with self.session() as s:
+            account_transaction = (
+                s.query(AccountTransaction)
+                .filter_by(account_id=account_id, transaction_id=transaction_id)
+                .first()
+            )
+            if not account_transaction:
+                return False
+            s.delete(account_transaction)
+            return True
+
+    # ---------- PersonSpace ----------
+
+    def insert_person_space(self, data: PersonSpaceCreate) -> PersonSpaceOut:
+        with self.session() as s:
+            person_space = PersonSpace(
+                person_id=data.person_id,
+                space_id=data.space_id,
+            )
+            s.add(person_space)
+            s.flush()
+            return PersonSpaceOut.model_validate(person_space)
+
+    def get_person_space(self, person_id: int, space_id: int) -> PersonSpaceOut | None:
+        with self.session() as s:
+            row = (
+                s.query(PersonSpace)
+                .filter_by(person_id=person_id, space_id=space_id)
+                .first()
+            )
+            return PersonSpaceOut.model_validate(row) if row else None
+
+    def get_person_spaces(self) -> list[PersonSpaceOut]:
+        with self.session() as s:
+            rows = s.query(PersonSpace).all()
+            return [PersonSpaceOut.model_validate(r) for r in rows]
+
+    def update_person_space(
+        self, person_id: int, space_id: int, data: PersonSpaceCreate
+    ) -> bool:
+        with self.session() as s:
+            person_space = (
+                s.query(PersonSpace)
+                .filter_by(person_id=person_id, space_id=space_id)
+                .first()
+            )
+            if not person_space:
+                return False
+            person_space.person_id = data.person_id
+            person_space.space_id = data.space_id
+            return True
+
+    def delete_person_space(self, person_id: int, space_id: int) -> bool:
+        with self.session() as s:
+            person_space = (
+                s.query(PersonSpace)
+                .filter_by(person_id=person_id, space_id=space_id)
+                .first()
+            )
+            if not person_space:
+                return False
+            s.delete(person_space)
             return True

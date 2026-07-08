@@ -68,11 +68,10 @@ class Transaction(Base):
 class Contribution(Base):
     __tablename__ = "contributions"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
     transaction_id: Mapped[int] = mapped_column(
-        ForeignKey("transactions.id"), nullable=False
+        ForeignKey("transactions.id"), primary_key=True
     )
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False)
+    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), primary_key=True)
     amount: Mapped[int] = mapped_column(nullable=False)
     amount_paid: Mapped[int] = mapped_column(nullable=False)
     transaction: Mapped["Transaction"] = relationship(

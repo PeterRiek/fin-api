@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 
+from app.database import Database
 from app.dependencies import get_db
 from app.schemas import UserCreate
 
@@ -27,9 +28,19 @@ if __name__ == "__main__":
 
 
     usercreate = UserCreate(username=username, email=email, password=password)
-    user_id = db.insert_user(usercreate).id
+    user_id = db.insert_user(data=usercreate).id
     user = db.get_user(user_id)
     if not user: 
         print(f"user with ID {user_id} not found.")
     else:
         print(f"Inserted user: {user.email} with ID: {user.id}")
+
+
+"""
+terminal based input loop
+enter username in beginning wich will be used
+
+
+"""
+def add_entry(db: Database, user_id, space_id):
+    pass

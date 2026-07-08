@@ -78,7 +78,6 @@ class SpaceUserCreate(BaseModel):
 class SpaceUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
     space_id: int
     user_id: int
     is_owner: bool
@@ -122,3 +121,15 @@ class AccountTransactionOut(BaseModel):
     amount_requested: float
     amount_paid: float
     is_initial: bool
+
+
+# ---------- PersonSpace ----------
+
+class PersonSpaceCreate(BaseModel):
+    person_id: int
+    space_id: int
+
+class PersonSpaceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    person_id: int
+    space_id: int
