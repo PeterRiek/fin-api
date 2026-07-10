@@ -205,6 +205,18 @@ class Database:
             rows = s.query(Account).filter_by(person_id=person_id).all()
             return [AccountOut.model_validate(r) for r in rows]
 
+    def get_accounts_by_user(self, user_id: int) -> list[AccountOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Account)
+                .join(Person, Account.person_id == Person.id)
+                .join(PersonSpace, Person.id == PersonSpace.person_id)
+                .join(SpaceUser, PersonSpace.space_id == SpaceUser.space_id)
+                .filter(SpaceUser.user_id == user_id)
+                .all()
+            )
+            return [AccountOut.model_validate(r) for r in rows]
+
     def update_account(self, account_id: int, data: AccountCreate) -> AccountOut | None:
         with self.session() as s:
             account = s.query(Account).filter_by(id=account_id).first()
@@ -310,7 +322,9 @@ class Database:
 
     def delete_space_user(self, space_id: int, user_id: int) -> bool:
         with self.session() as s:
-            space_user = s.query(SpaceUser).filter_by(space_id=space_id, user_id=user_id).first()
+            space_user = (
+                s.query(SpaceUser).filter_by(space_id=space_id, user_id=user_id).first()
+            )
             if not space_user:
                 return False
             s.delete(space_user)
@@ -344,6 +358,33 @@ class Database:
     def get_transactions_by_space(self, space_id: int) -> list[TransactionOut]:
         with self.session() as s:
             rows = s.query(Transaction).filter_by(space_id=space_id).all()
+            return [TransactionOut.model_validate(r) for r in rows]
+
+    def get_transactions_by_account(self, account_id: int) -> list[TransactionOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Transaction)
+                .join(
+                    AccountTransaction,
+                    Transaction.id == AccountTransaction.transaction_id,
+                )
+                .filter(AccountTransaction.account_id == account_id)
+                .all()
+            )
+            return [TransactionOut.model_validate(r) for r in rows]
+
+    def get_transactions_by_person(self, person_id: int) -> list[TransactionOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Transaction)
+                .join(
+                    AccountTransaction,
+                    Transaction.id == AccountTransaction.transaction_id,
+                )
+                .join(Account, AccountTransaction.account_id == Account.id)
+                .filter(Account.person_id == person_id)
+                .all()
+            )
             return [TransactionOut.model_validate(r) for r in rows]
 
     def update_transaction(
