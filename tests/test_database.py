@@ -5,7 +5,7 @@ import pytest
 from app.database import Database
 from app.schemas import (
     AccountCreate,
-    AccountTransactionCreate,
+    ContributionCreate,
     PersonCreate,
     PersonSpaceCreate,
     SpaceCreate,
@@ -190,7 +190,7 @@ def transaction_world(world):
         TransactionCreate(space_id=space.id, title="Groceries", date=date(2026, 1, 1))
     )
     contribution = db.insert_account_transaction(
-        AccountTransactionCreate(
+        ContributionCreate(
             account_id=account.id,
             transaction_id=transaction.id,
             amount_requested=50.0,
@@ -245,7 +245,7 @@ def test_account_transaction_crud(transaction_world):
     updated = db.update_account_transaction(
         account.id,
         transaction.id,
-        AccountTransactionCreate(
+        ContributionCreate(
             account_id=account.id,
             transaction_id=transaction.id,
             amount_requested=75.0,

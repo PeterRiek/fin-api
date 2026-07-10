@@ -2,11 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_db
 from app.routes.auth import get_current_user
-from app.routes.ownership import _find_user_space, get_owned_account, get_owned_transaction
+from app.routes.ownership import (
+    _find_user_space,
+    get_owned_account,
+    get_owned_transaction,
+)
 from app.schemas import (
     AccountOut,
-    AccountTransactionCreate,
+    ContributionCreate,
     TransactionCreate,
+    TransactionDetailOut,
     TransactionOut,
     UserOut,
 )
@@ -20,8 +25,19 @@ db = get_db()
 
 
 @transactions_router.get("/transactions/{transaction_id}")
-def get_transaction(transaction: TransactionOut = Depends(get_owned_transaction)):
-    return transaction
+def get_transaction(
+    transaction: TransactionOut = Depends(get_owned_transaction),
+) -> TransactionDetailOut:
+    contributions = db.get_contribution_details_by_transaction(transaction.id)
+    return TransactionDetailOut(
+        id=transaction.id,
+        space_id=transaction.space_id,
+        title=transaction.title,
+        description=transaction.description,
+        date=transaction.date,
+        created_at=transaction.created_at,
+        contributions=contributions,
+    )
 
 
 @transactions_router.post("/transactions", status_code=201)
@@ -75,22 +91,26 @@ def get_contribution(
     return contribution
 
 
-@transactions_router.post("/transactions/{transaction_id}/contributions", status_code=201)
+@transactions_router.post(
+    "/transactions/{transaction_id}/contributions", status_code=201
+)
 def create_contribution(
-    contribution_data: AccountTransactionCreate,
+    contribution_data: ContributionCreate,
     transaction: TransactionOut = Depends(get_owned_transaction),
     current_user: UserOut = Depends(get_current_user),
 ):
     accounts = db.get_accounts_by_user(current_user.id)
     if not any(a.id == contribution_data.account_id for a in accounts):
-        raise HTTPException(status_code=403, detail="Not authorized to use this account")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to use this account"
+        )
     contribution_data.transaction_id = transaction.id
     return db.insert_account_transaction(contribution_data)
 
 
 @transactions_router.put("/transactions/{transaction_id}/contributions/{account_id}")
 def update_contribution(
-    contribution_data: AccountTransactionCreate,
+    contribution_data: ContributionCreate,
     account: AccountOut = Depends(get_owned_account),
     transaction: TransactionOut = Depends(get_owned_transaction),
 ):

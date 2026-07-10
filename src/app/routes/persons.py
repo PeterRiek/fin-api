@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.dependencies import get_db
 from app.routes.auth import get_current_user
 from app.routes.ownership import get_owned_person
-from app.schemas import PersonCreate, PersonOut, UserOut
+from app.schemas import PersonCreate, PersonOut, PersonSummaryOut, UserOut
 
 persons_router = APIRouter(prefix="/split", tags=["persons"])
 
@@ -51,3 +51,13 @@ def get_person_transactions(person: PersonOut = Depends(get_owned_person)):
 @persons_router.get("/persons/{person_id}/accounts")
 def get_person_accounts(person: PersonOut = Depends(get_owned_person)):
     return db.get_accounts_by_person(person.id)
+
+
+@persons_router.get("/persons/{person_id}/summary")
+def get_person_summary(
+    person: PersonOut = Depends(get_owned_person),
+) -> PersonSummaryOut:
+    summary = db.get_person_summary(person.id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return summary

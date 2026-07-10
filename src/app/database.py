@@ -11,7 +11,7 @@ from app.models import (
     Person,
 )
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 
@@ -23,16 +23,20 @@ from app.schemas import (
     UserOut,
     PersonCreate,
     PersonOut,
+    PersonSummaryOut,
     AccountCreate,
     AccountOut,
     SpaceCreate,
     SpaceOut,
+    SpaceSummaryOut,
     SpaceUserCreate,
     SpaceUserOut,
     TransactionCreate,
     TransactionOut,
-    AccountTransactionCreate,
-    AccountTransactionOut,
+    ContributionCreate,
+    ContributionOut,
+    ContributionDetailOut,
+    PersonBalanceOut,
 )
 
 
@@ -177,6 +181,40 @@ class Database:
             s.delete(person)
             return True
 
+    def get_person_summary(self, person_id: int) -> PersonSummaryOut | None:
+        with self.session() as s:
+            person = s.query(Person).filter_by(id=person_id).first()
+            if not person:
+                return None
+            net_balance = (
+                s.query(
+                    func.coalesce(
+                        func.sum(
+                            AccountTransaction.amount_paid
+                            - AccountTransaction.amount_requested
+                        ),
+                        0.0,
+                    )
+                )
+                .join(Account, AccountTransaction.account_id == Account.id)
+                .filter(Account.person_id == person_id)
+                .scalar()
+            )
+            accounts = s.query(Account).filter_by(person_id=person_id).all()
+            transaction_count = (
+                s.query(AccountTransaction)
+                .join(Account, AccountTransaction.account_id == Account.id)
+                .filter(Account.person_id == person_id)
+                .count()
+            )
+            return PersonSummaryOut(
+                person_id=person.id,
+                name=person.name,
+                net_balance=round(net_balance, 2),
+                accounts=[AccountOut.model_validate(a) for a in accounts],
+                transaction_count=transaction_count,
+            )
+
     # ---------- Account ----------
 
     def insert_account(self, data: AccountCreate) -> AccountOut:
@@ -267,6 +305,71 @@ class Database:
             )
 
             return [SpaceOut.model_validate(r) for r in rows]
+
+    def get_space_summaries_by_user(self, user_id: int) -> list[SpaceSummaryOut]:
+        with self.session() as s:
+            spaces = (
+                s.query(Space)
+                .join(SpaceUser, Space.id == SpaceUser.space_id)
+                .filter(SpaceUser.user_id == user_id)
+                .all()
+            )
+            summaries = []
+            for space in spaces:
+                member_count = s.query(SpaceUser).filter_by(space_id=space.id).count()
+                transaction_count = (
+                    s.query(Transaction).filter_by(space_id=space.id).count()
+                )
+                summaries.append(
+                    SpaceSummaryOut(
+                        id=space.id,
+                        name=space.name,
+                        description=space.description,
+                        created_at=space.created_at,
+                        member_count=member_count,
+                        transaction_count=transaction_count,
+                    )
+                )
+            return summaries
+
+    def get_person_balances_by_space(self, space_id: int) -> list[PersonBalanceOut]:
+        with self.session() as s:
+            persons = (
+                s.query(Person)
+                .join(PersonSpace, Person.id == PersonSpace.person_id)
+                .filter(PersonSpace.space_id == space_id)
+                .all()
+            )
+            balances = []
+            for person in persons:
+                net_balance = (
+                    s.query(
+                        func.coalesce(
+                            func.sum(
+                                AccountTransaction.amount_paid
+                                - AccountTransaction.amount_requested
+                            ),
+                            0.0,
+                        )
+                    )
+                    .join(Account, AccountTransaction.account_id == Account.id)
+                    .join(
+                        Transaction,
+                        AccountTransaction.transaction_id == Transaction.id,
+                    )
+                    .filter(
+                        Account.person_id == person.id, Transaction.space_id == space_id
+                    )
+                    .scalar()
+                )
+                balances.append(
+                    PersonBalanceOut(
+                        person_id=person.id,
+                        name=person.name,
+                        net_balance=round(net_balance, 2),
+                    )
+                )
+            return balances
 
     def update_space(self, space_id: int, data: SpaceCreate) -> SpaceOut | None:
         with self.session() as s:
@@ -408,11 +511,9 @@ class Database:
             s.delete(transaction)
             return True
 
-    # ---------- AccountTransaction ----------
+    # ---------- AccountTransaction (Contribution) ----------
 
-    def insert_account_transaction(
-        self, data: AccountTransactionCreate
-    ) -> AccountTransactionOut:
+    def insert_account_transaction(self, data: ContributionCreate) -> ContributionOut:
         with self.session() as s:
             account_transaction = AccountTransaction(
                 account_id=data.account_id,
@@ -423,38 +524,60 @@ class Database:
             )
             s.add(account_transaction)
             s.flush()
-            return AccountTransactionOut.model_validate(account_transaction)
+            return ContributionOut.model_validate(account_transaction)
 
     def get_account_transaction(
         self, account_id: int, transaction_id: int
-    ) -> AccountTransactionOut | None:
+    ) -> ContributionOut | None:
         with self.session() as s:
             row = (
                 s.query(AccountTransaction)
                 .filter_by(account_id=account_id, transaction_id=transaction_id)
                 .first()
             )
-            return AccountTransactionOut.model_validate(row) if row else None
+            return ContributionOut.model_validate(row) if row else None
 
-    def get_account_transactions(self) -> list[AccountTransactionOut]:
+    def get_account_transactions(self) -> list[ContributionOut]:
         with self.session() as s:
             rows = s.query(AccountTransaction).all()
-            return [AccountTransactionOut.model_validate(r) for r in rows]
+            return [ContributionOut.model_validate(r) for r in rows]
 
     def get_account_transactions_by_transaction(
         self, transaction_id: int
-    ) -> list[AccountTransactionOut]:
+    ) -> list[ContributionOut]:
         with self.session() as s:
             rows = (
                 s.query(AccountTransaction)
                 .filter_by(transaction_id=transaction_id)
                 .all()
             )
-            return [AccountTransactionOut.model_validate(r) for r in rows]
+            return [ContributionOut.model_validate(r) for r in rows]
+
+    def get_contribution_details_by_transaction(
+        self, transaction_id: int
+    ) -> list[ContributionDetailOut]:
+        with self.session() as s:
+            rows = (
+                s.query(AccountTransaction, Person.name)
+                .join(Account, AccountTransaction.account_id == Account.id)
+                .join(Person, Account.person_id == Person.id)
+                .filter(AccountTransaction.transaction_id == transaction_id)
+                .all()
+            )
+            return [
+                ContributionDetailOut(
+                    account_id=contribution.account_id,
+                    person_name=person_name,
+                    amount_requested=contribution.amount_requested,
+                    amount_paid=contribution.amount_paid,
+                    is_initial=contribution.is_initial,
+                )
+                for contribution, person_name in rows
+            ]
 
     def update_account_transaction(
-        self, account_id: int, transaction_id: int, data: AccountTransactionCreate
-    ) -> AccountTransactionOut | None:
+        self, account_id: int, transaction_id: int, data: ContributionCreate
+    ) -> ContributionOut | None:
         with self.session() as s:
             account_transaction = (
                 s.query(AccountTransaction)
@@ -466,7 +589,7 @@ class Database:
             account_transaction.amount_requested = data.amount_requested
             account_transaction.amount_paid = data.amount_paid
             account_transaction.is_initial = data.is_initial
-            return AccountTransactionOut.model_validate(account_transaction)
+            return ContributionOut.model_validate(account_transaction)
 
     def delete_account_transaction(self, account_id: int, transaction_id: int) -> bool:
         with self.session() as s:

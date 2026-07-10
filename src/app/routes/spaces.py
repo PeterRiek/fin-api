@@ -4,9 +4,12 @@ from app.dependencies import get_db
 from app.routes.auth import get_current_user
 from app.routes.ownership import get_owned_space
 from app.schemas import (
+    PersonBalanceOut,
     PersonSpaceCreate,
     SpaceCreate,
     SpaceOut,
+    SpaceOverviewOut,
+    SpaceSummaryOut,
     SpaceUserCreate,
     UserOut,
 )
@@ -20,8 +23,10 @@ db = get_db()
 
 
 @spaces_router.get("/spaces")
-def get_spaces(current_user: UserOut = Depends(get_current_user)):
-    return db.get_spaces_by_user(current_user.id)
+def get_spaces(
+    current_user: UserOut = Depends(get_current_user),
+) -> list[SpaceSummaryOut]:
+    return db.get_space_summaries_by_user(current_user.id)
 
 
 @spaces_router.post("/spaces", status_code=201)
@@ -112,3 +117,31 @@ def remove_space_person(person_id: int, space: SpaceOut = Depends(get_owned_spac
 @spaces_router.get("/spaces/{space_id}/transactions")
 def get_space_transactions(space: SpaceOut = Depends(get_owned_space)):
     return db.get_transactions_by_space(space.id)
+
+
+# --- Composite views ---
+
+
+@spaces_router.get("/spaces/{space_id}/overview")
+def get_space_overview(
+    space: SpaceOut = Depends(get_owned_space),
+) -> SpaceOverviewOut:
+    transactions = db.get_transactions_by_space(space.id)
+    recent_transactions = sorted(transactions, key=lambda t: t.date, reverse=True)[:5]
+    return SpaceOverviewOut(
+        id=space.id,
+        name=space.name,
+        description=space.description,
+        created_at=space.created_at,
+        users=db.get_users_by_space(space.id),
+        persons=db.get_persons_by_space(space.id),
+        transaction_count=len(transactions),
+        recent_transactions=recent_transactions,
+    )
+
+
+@spaces_router.get("/spaces/{space_id}/balances")
+def get_space_balances(
+    space: SpaceOut = Depends(get_owned_space),
+) -> list[PersonBalanceOut]:
+    return db.get_person_balances_by_space(space.id)

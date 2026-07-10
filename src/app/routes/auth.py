@@ -41,16 +41,22 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserOut:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-@auth_router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@auth_router.post(
+    "/register", response_model=UserOut, status_code=status.HTTP_201_CREATED
+)
 def register(data: UserCreate, db: Database = Depends(get_db)) -> UserOut:
     try:
         return db.insert_user(data)
     except IntegrityError:
-        raise HTTPException(status_code=400, detail="username or email already registered")
+        raise HTTPException(
+            status_code=400, detail="username or email already registered"
+        )
 
 
 @auth_router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Database = Depends(get_db)) -> Token:
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Database = Depends(get_db)
+) -> Token:
     user = db.authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(

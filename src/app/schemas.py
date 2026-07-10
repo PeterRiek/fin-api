@@ -109,10 +109,10 @@ class TransactionOut(BaseModel):
     created_at: datetime
 
 
-# ---------- AccountTransaction ----------
+# ---------- Contribution (AccountTransaction) ----------
 
 
-class AccountTransactionCreate(BaseModel):
+class ContributionCreate(BaseModel):
     account_id: int
     transaction_id: int
     amount_requested: float
@@ -120,11 +120,19 @@ class AccountTransactionCreate(BaseModel):
     is_initial: bool = False
 
 
-class AccountTransactionOut(BaseModel):
+class ContributionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     account_id: int
     transaction_id: int
+    amount_requested: float
+    amount_paid: float
+    is_initial: bool
+
+
+class ContributionDetailOut(BaseModel):
+    account_id: int
+    person_name: str
     amount_requested: float
     amount_paid: float
     is_initial: bool
@@ -150,3 +158,50 @@ class PersonSpaceOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# --------- Composite / enriched views ----------
+
+
+class TransactionDetailOut(BaseModel):
+    id: int
+    space_id: int
+    title: str
+    description: str | None
+    date: dt_date
+    created_at: datetime
+    contributions: list[ContributionDetailOut]
+
+
+class PersonBalanceOut(BaseModel):
+    person_id: int
+    name: str
+    net_balance: float
+
+
+class PersonSummaryOut(BaseModel):
+    person_id: int
+    name: str
+    net_balance: float
+    accounts: list[AccountOut]
+    transaction_count: int
+
+
+class SpaceOverviewOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    created_at: datetime
+    users: list[UserOut]
+    persons: list[PersonOut]
+    transaction_count: int
+    recent_transactions: list[TransactionOut]
+
+
+class SpaceSummaryOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    created_at: datetime
+    member_count: int
+    transaction_count: int
