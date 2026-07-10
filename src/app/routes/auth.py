@@ -14,6 +14,8 @@ SECRET_KEY = settings.auth_secret_key
 ALGORITHM = settings.auth_algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
+db = get_db()
+
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -25,13 +27,16 @@ def create_access_token(data: dict, expires_delta: timedelta) -> str:
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+def get_current_user(token: str = Depends(oauth2_scheme)) -> UserOut:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        if user_id is None:
+        if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return {"user_id": user_id}
+        user = db.get_user(user_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -47,7 +52,7 @@ def register(data: UserCreate, db: Database = Depends(get_db)) -> UserOut:
 @auth_router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Database = Depends(get_db)) -> Token:
     user = db.authenticate_user(form_data.username, form_data.password)
-    if user is None:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="incorrect username or password",

@@ -90,15 +90,25 @@ class Database:
             rows = s.query(User).all()
             return [UserOut.model_validate(r) for r in rows]
 
-    def update_user(self, user_id: int, data: UserCreate) -> bool:
+    def get_users_by_space(self, space_id: int) -> list[UserOut]:
+        with self.session() as s:
+            rows = (
+                s.query(User)
+                .join(SpaceUser, User.id == SpaceUser.user_id)
+                .filter(SpaceUser.space_id == space_id)
+                .all()
+            )
+            return [UserOut.model_validate(r) for r in rows]
+
+    def update_user(self, user_id: int, data: UserCreate) -> UserCreate | None:
         with self.session() as s:
             user = s.query(User).filter_by(id=user_id).first()
             if not user:
-                return False
+                return None
             user.username = data.username
             user.email = data.email
             user.password_hash = hash_password(data.password)
-            return True
+            return UserCreate.model_validate(user)
 
     def delete_user(self, user_id: int) -> bool:
         with self.session() as s:
@@ -140,13 +150,24 @@ class Database:
             )
             return [PersonOut.model_validate(r) for r in rows]
 
-    def update_person(self, person_id: int, data: PersonCreate) -> bool:
+    def get_persons_by_user(self, user_id: int) -> list[PersonOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Person)
+                .join(PersonSpace, Person.id == PersonSpace.person_id)
+                .join(SpaceUser, PersonSpace.space_id == SpaceUser.space_id)
+                .filter(SpaceUser.user_id == user_id)
+                .all()
+            )
+            return [PersonOut.model_validate(r) for r in rows]
+
+    def update_person(self, person_id: int, data: PersonCreate) -> PersonOut | None:
         with self.session() as s:
             person = s.query(Person).filter_by(id=person_id).first()
             if not person:
-                return False
+                return None
             person.name = data.name
-            return True
+            return PersonOut.model_validate(person)
 
     def delete_person(self, person_id: int) -> bool:
         with self.session() as s:
@@ -184,14 +205,14 @@ class Database:
             rows = s.query(Account).filter_by(person_id=person_id).all()
             return [AccountOut.model_validate(r) for r in rows]
 
-    def update_account(self, account_id: int, data: AccountCreate) -> bool:
+    def update_account(self, account_id: int, data: AccountCreate) -> AccountOut | None:
         with self.session() as s:
             account = s.query(Account).filter_by(id=account_id).first()
             if not account:
-                return False
+                return None
             account.name = data.name
             account.person_id = data.person_id
-            return True
+            return AccountOut.model_validate(account)
 
     def delete_account(self, account_id: int) -> bool:
         with self.session() as s:
@@ -235,14 +256,14 @@ class Database:
 
             return [SpaceOut.model_validate(r) for r in rows]
 
-    def update_space(self, space_id: int, data: SpaceCreate) -> bool:
+    def update_space(self, space_id: int, data: SpaceCreate) -> SpaceOut | None:
         with self.session() as s:
             space = s.query(Space).filter_by(id=space_id).first()
             if not space:
-                return False
+                return None
             space.name = data.name
             space.description = data.description if data.description else ""
-            return True
+            return SpaceOut.model_validate(space)
 
     def delete_space(self, space_id: int) -> bool:
         with self.session() as s:
@@ -275,19 +296,21 @@ class Database:
             rows = s.query(SpaceUser).all()
             return [SpaceUserOut.model_validate(r) for r in rows]
 
-    def update_space_user(self, space_user_id: int, data: SpaceUserCreate) -> bool:
+    def update_space_user(
+        self, space_user_id: int, data: SpaceUserCreate
+    ) -> SpaceUserOut | None:
         with self.session() as s:
             space_user = s.query(SpaceUser).filter_by(id=space_user_id).first()
             if not space_user:
-                return False
+                return None
             space_user.space_id = data.space_id
             space_user.user_id = data.user_id
             space_user.is_owner = data.is_owner
-            return True
+            return SpaceUserOut.model_validate(space_user)
 
-    def delete_space_user(self, space_user_id: int) -> bool:
+    def delete_space_user(self, space_id: int, user_id: int) -> bool:
         with self.session() as s:
-            space_user = s.query(SpaceUser).filter_by(id=space_user_id).first()
+            space_user = s.query(SpaceUser).filter_by(space_id=space_id, user_id=user_id).first()
             if not space_user:
                 return False
             s.delete(space_user)
@@ -323,16 +346,18 @@ class Database:
             rows = s.query(Transaction).filter_by(space_id=space_id).all()
             return [TransactionOut.model_validate(r) for r in rows]
 
-    def update_transaction(self, transaction_id: int, data: TransactionCreate) -> bool:
+    def update_transaction(
+        self, transaction_id: int, data: TransactionCreate
+    ) -> TransactionOut | None:
         with self.session() as s:
             transaction = s.query(Transaction).filter_by(id=transaction_id).first()
             if not transaction:
-                return False
+                return None
             transaction.space_id = data.space_id
             transaction.title = data.title
             transaction.description = data.description
             transaction.date = data.date
-            return True
+            return TransactionOut.model_validate(transaction)
 
     def delete_transaction(self, transaction_id: int) -> bool:
         with self.session() as s:
@@ -388,7 +413,7 @@ class Database:
 
     def update_account_transaction(
         self, account_id: int, transaction_id: int, data: AccountTransactionCreate
-    ) -> bool:
+    ) -> AccountTransactionOut | None:
         with self.session() as s:
             account_transaction = (
                 s.query(AccountTransaction)
@@ -396,11 +421,11 @@ class Database:
                 .first()
             )
             if not account_transaction:
-                return False
+                return None
             account_transaction.amount_requested = data.amount_requested
             account_transaction.amount_paid = data.amount_paid
             account_transaction.is_initial = data.is_initial
-            return True
+            return AccountTransactionOut.model_validate(account_transaction)
 
     def delete_account_transaction(self, account_id: int, transaction_id: int) -> bool:
         with self.session() as s:
@@ -442,7 +467,7 @@ class Database:
 
     def update_person_space(
         self, person_id: int, space_id: int, data: PersonSpaceCreate
-    ) -> bool:
+    ) -> PersonSpaceOut | None:
         with self.session() as s:
             person_space = (
                 s.query(PersonSpace)
@@ -450,10 +475,10 @@ class Database:
                 .first()
             )
             if not person_space:
-                return False
+                return None
             person_space.person_id = data.person_id
             person_space.space_id = data.space_id
-            return True
+            return PersonSpaceOut.model_validate(person_space)
 
     def delete_person_space(self, person_id: int, space_id: int) -> bool:
         with self.session() as s:

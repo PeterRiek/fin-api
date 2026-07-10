@@ -1,6 +1,6 @@
 from datetime import date as dt_date, datetime
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -24,14 +24,12 @@ class User(Base):
 
 class SpaceUser(Base):
     __tablename__ = "space_users"
-    __table_args__ = (UniqueConstraint("space_id", "user_id"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
     space_id: Mapped[int] = mapped_column(
-        ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("spaces.id", ondelete="CASCADE"), primary_key=True
     )
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     is_owner: Mapped[bool] = mapped_column(nullable=False, default=False)
 
@@ -72,6 +70,9 @@ class Transaction(Base):
 
     space: Mapped["Space"] = relationship(back_populates="transactions")
     account_links: Mapped[list["AccountTransaction"]] = relationship(
+        back_populates="transaction", cascade="all, delete-orphan"
+    )
+    category_links: Mapped[list["TransactionCategory"]] = relationship(
         back_populates="transaction", cascade="all, delete-orphan"
     )
 
@@ -127,7 +128,6 @@ class Person(Base):
 class PersonSpace(Base):
     __tablename__ = "person_spaces"
 
-    __table_args__ = (UniqueConstraint("space_id", "person_id"),)
     space_id: Mapped[int] = mapped_column(
         ForeignKey("spaces.id", ondelete="CASCADE"), primary_key=True
     )
@@ -136,3 +136,28 @@ class PersonSpace(Base):
     )
     space: Mapped["Space"] = relationship(back_populates="person_links")
     person: Mapped["Person"] = relationship(back_populates="space_links")
+
+
+class TransactionCategory(Base):
+    __tablename__ = "transaction_categories"
+
+    transaction_id: Mapped[int] = mapped_column(
+        ForeignKey("transactions.id", ondelete="CASCADE"), primary_key=True
+    )
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True
+    )
+    transaction: Mapped["Transaction"] = relationship(back_populates="category_links")
+    category: Mapped["Category"] = relationship(back_populates="transaction_links")
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    transaction_links: Mapped[list["TransactionCategory"]] = relationship(
+        back_populates="category", cascade="all, delete-orphan"
+    )
