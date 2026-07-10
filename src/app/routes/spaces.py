@@ -1,0 +1,114 @@
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.dependencies import get_db
+from app.routes.auth import get_current_user
+from app.routes.ownership import get_owned_space
+from app.schemas import (
+    PersonSpaceCreate,
+    SpaceCreate,
+    SpaceOut,
+    SpaceUserCreate,
+    UserOut,
+)
+
+spaces_router = APIRouter(prefix="/split", tags=["spaces"])
+
+db = get_db()
+
+
+# --- Spaces ---
+
+
+@spaces_router.get("/spaces")
+def get_spaces(current_user: UserOut = Depends(get_current_user)):
+    return db.get_spaces_by_user(current_user.id)
+
+
+@spaces_router.post("/spaces", status_code=201)
+def create_space(
+    space_data: SpaceCreate, current_user: UserOut = Depends(get_current_user)
+):
+    space = db.insert_space(space_data)
+    space_user = SpaceUserCreate(
+        space_id=space.id, user_id=current_user.id, is_owner=True
+    )
+    db.insert_space_user(space_user)
+    return space
+
+
+@spaces_router.get("/spaces/{space_id}")
+def get_space(space: SpaceOut = Depends(get_owned_space)):
+    return space
+
+
+@spaces_router.delete("/spaces/{space_id}", status_code=204)
+def delete_space(space: SpaceOut = Depends(get_owned_space)):
+    if db.delete_space(space.id):
+        return
+    raise HTTPException(status_code=500, detail="Failed to delete space")
+
+
+@spaces_router.put("/spaces/{space_id}")
+def update_space(
+    space_data: SpaceCreate,
+    space: SpaceOut = Depends(get_owned_space),
+):
+    updated_space = db.update_space(space.id, space_data)
+    if not updated_space:
+        raise HTTPException(status_code=500, detail="Failed to update space")
+    return updated_space
+
+
+# --- Users in Space ---
+
+
+@spaces_router.get("/spaces/{space_id}/users")
+def get_space_users(space: SpaceOut = Depends(get_owned_space)):
+    return db.get_users_by_space(space.id)
+
+
+@spaces_router.post("/spaces/{space_id}/users", status_code=201)
+def add_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
+    space_user_create = SpaceUserCreate(
+        space_id=space.id, user_id=user_id, is_owner=False
+    )
+    space_user_out = db.insert_space_user(space_user_create)
+    if not space_user_out:
+        raise HTTPException(status_code=500, detail="Failed to add user to space")
+    return space_user_out
+
+
+@spaces_router.delete("/spaces/{space_id}/users/{user_id}", status_code=204)
+def remove_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
+    if db.delete_space_user(space.id, user_id):
+        return
+    raise HTTPException(status_code=500, detail="Failed to remove user from space")
+
+
+# --- Persons in Space ---
+
+
+@spaces_router.get("/spaces/{space_id}/persons")
+def get_space_persons(space: SpaceOut = Depends(get_owned_space)):
+    return db.get_persons_by_space(space.id)
+
+
+@spaces_router.post("/spaces/{space_id}/persons", status_code=201)
+def add_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space)):
+    person_space_create = PersonSpaceCreate(space_id=space.id, person_id=person_id)
+    person_space_out = db.insert_person_space(person_space_create)
+    if not person_space_out:
+        raise HTTPException(status_code=500, detail="Failed to add person to space")
+    return person_space_out
+
+
+@spaces_router.delete("/spaces/{space_id}/persons/{person_id}", status_code=204)
+def remove_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space)):
+    if db.delete_person_space(space.id, person_id):
+        return
+    raise HTTPException(status_code=500, detail="Failed to remove person from space")
+
+
+@spaces_router.get("/spaces/{space_id}/transactions")
+def get_space_transactions(space: SpaceOut = Depends(get_owned_space)):
+    return db.get_transactions_by_space(space.id)
