@@ -1,6 +1,7 @@
 from datetime import datetime
 from app.models import (
     Base,
+    Category,
     PersonSpace,
     User,
     SpaceUser,
@@ -9,6 +10,7 @@ from app.models import (
     AccountTransaction,
     Account,
     Person,
+    TransactionCategory,
 )
 
 from sqlalchemy import create_engine, func
@@ -37,6 +39,10 @@ from app.schemas import (
     ContributionOut,
     ContributionDetailOut,
     PersonBalanceOut,
+    CategoryCreate,
+    CategoryOut,
+    TransactionCategoryCreate,
+    TransactionCategoryOut,
 )
 
 
@@ -654,4 +660,106 @@ class Database:
             if not person_space:
                 return False
             s.delete(person_space)
+            return True
+
+    # ---------- Category ----------
+
+    def insert_category(self, data: CategoryCreate) -> CategoryOut:
+        with self.session() as s:
+            category = Category(
+                name=data.name,
+                created_at=datetime.now(),
+            )
+            s.add(category)
+            s.flush()
+            return CategoryOut.model_validate(category)
+
+    def get_category(self, category_id: int) -> CategoryOut | None:
+        with self.session() as s:
+            row = s.query(Category).filter_by(id=category_id).first()
+            return CategoryOut.model_validate(row) if row else None
+
+    def get_categories(self) -> list[CategoryOut]:
+        with self.session() as s:
+            rows = s.query(Category).all()
+            return [CategoryOut.model_validate(r) for r in rows]
+
+    def update_category(
+        self, category_id: int, data: CategoryCreate
+    ) -> CategoryOut | None:
+        with self.session() as s:
+            category = s.query(Category).filter_by(id=category_id).first()
+            if not category:
+                return None
+            category.name = data.name
+            return CategoryOut.model_validate(category)
+
+    def delete_category(self, category_id: int) -> bool:
+        with self.session() as s:
+            category = s.query(Category).filter_by(id=category_id).first()
+            if not category:
+                return False
+            s.delete(category)
+            return True
+
+    # ---------- TransactionCategory ----------
+
+    def insert_transaction_category(
+        self, data: TransactionCategoryCreate
+    ) -> TransactionCategoryOut:
+        with self.session() as s:
+            transaction_category = TransactionCategory(
+                transaction_id=data.transaction_id,
+                category_id=data.category_id,
+            )
+            s.add(transaction_category)
+            s.flush()
+            return TransactionCategoryOut.model_validate(transaction_category)
+
+    def get_transaction_category(
+        self, transaction_id: int, category_id: int
+    ) -> TransactionCategoryOut | None:
+        with self.session() as s:
+            row = (
+                s.query(TransactionCategory)
+                .filter_by(transaction_id=transaction_id, category_id=category_id)
+                .first()
+            )
+            return TransactionCategoryOut.model_validate(row) if row else None
+
+    def get_categories_by_transaction(self, transaction_id: int) -> list[CategoryOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Category)
+                .join(
+                    TransactionCategory, Category.id == TransactionCategory.category_id
+                )
+                .filter(TransactionCategory.transaction_id == transaction_id)
+                .all()
+            )
+            return [CategoryOut.model_validate(r) for r in rows]
+
+    def get_transactions_by_category(self, category_id: int) -> list[TransactionOut]:
+        with self.session() as s:
+            rows = (
+                s.query(Transaction)
+                .join(
+                    TransactionCategory,
+                    Transaction.id == TransactionCategory.transaction_id,
+                )
+                .filter(TransactionCategory.category_id == category_id)
+                .all()
+            )
+            return [TransactionOut.model_validate(r) for r in rows]
+
+    def delete_transaction_category(self, transaction_id: int, category_id: int) -> bool:
+        with self.session() as s:
+            transaction_category = (
+                s.query(TransactionCategory)
+                .filter_by(transaction_id=transaction_id, category_id=category_id)
+                .first()
+            )
+            if not transaction_category:
+                return False
+            s.delete(transaction_category)
             return True

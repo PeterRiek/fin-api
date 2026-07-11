@@ -169,3 +169,88 @@ def test_contribution_crud(client, register_and_login):
         ).status_code
         == 404
     )
+
+
+# ---------- Categories ----------
+
+
+def test_link_and_unlink_transaction_category(client, register_and_login):
+    headers = register_and_login("alice")
+    space, _, _ = _space_person_account(client, headers)
+    transaction = client.post(
+        "/split/transactions",
+        json={"space_id": space["id"], "title": "Groceries", "date": "2026-01-01"},
+        headers=headers,
+    ).json()
+    category = client.post(
+        "/split/categories", json={"name": "Groceries"}, headers=headers
+    ).json()
+
+    response = client.post(
+        f"/split/transactions/{transaction['id']}/categories",
+        params={"category_id": category["id"]},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    assert response.json() == {
+        "transaction_id": transaction["id"],
+        "category_id": category["id"],
+    }
+
+    categories = client.get(
+        f"/split/transactions/{transaction['id']}/categories", headers=headers
+    ).json()
+    assert [c["id"] for c in categories] == [category["id"]]
+
+    detail = client.get(
+        f"/split/transactions/{transaction['id']}", headers=headers
+    ).json()
+    assert [c["id"] for c in detail["categories"]] == [category["id"]]
+
+    response = client.delete(
+        f"/split/transactions/{transaction['id']}/categories/{category['id']}",
+        headers=headers,
+    )
+    assert response.status_code == 204
+    assert (
+        client.get(
+            f"/split/transactions/{transaction['id']}/categories", headers=headers
+        ).json()
+        == []
+    )
+
+
+def test_link_unknown_category_is_404(client, register_and_login):
+    headers = register_and_login("alice")
+    space, _, _ = _space_person_account(client, headers)
+    transaction = client.post(
+        "/split/transactions",
+        json={"space_id": space["id"], "title": "Groceries", "date": "2026-01-01"},
+        headers=headers,
+    ).json()
+
+    response = client.post(
+        f"/split/transactions/{transaction['id']}/categories",
+        params={"category_id": 999},
+        headers=headers,
+    )
+    assert response.status_code == 404
+
+
+def test_unlink_missing_link_is_404(client, register_and_login):
+    headers = register_and_login("alice")
+    space, _, _ = _space_person_account(client, headers)
+    transaction = client.post(
+        "/split/transactions",
+        json={"space_id": space["id"], "title": "Groceries", "date": "2026-01-01"},
+        headers=headers,
+    ).json()
+    category = client.post(
+        "/split/categories", json={"name": "Groceries"}, headers=headers
+    ).json()
+
+    response = client.delete(
+        f"/split/transactions/{transaction['id']}/categories/{category['id']}",
+        headers=headers,
+    )
+    assert response.status_code == 404

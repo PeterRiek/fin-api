@@ -152,6 +152,35 @@ class PersonSpaceOut(BaseModel):
     space_id: int
 
 
+# ---------- Category ----------
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    created_at: datetime
+
+
+# ---------- TransactionCategory ----------
+
+
+class TransactionCategoryCreate(BaseModel):
+    transaction_id: int
+    category_id: int
+
+
+class TransactionCategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    transaction_id: int
+    category_id: int
+
+
 # --------- Authentication ----------
 
 
@@ -171,6 +200,7 @@ class TransactionDetailOut(BaseModel):
     date: dt_date
     created_at: datetime
     contributions: list[ContributionDetailOut]
+    categories: list[CategoryOut]
 
 
 class PersonBalanceOut(BaseModel):

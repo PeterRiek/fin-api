@@ -9,7 +9,10 @@ from app.routes.ownership import (
 )
 from app.schemas import (
     AccountOut,
+    CategoryOut,
     ContributionCreate,
+    TransactionCategoryCreate,
+    TransactionCategoryOut,
     TransactionCreate,
     TransactionDetailOut,
     TransactionOut,
@@ -29,6 +32,7 @@ def get_transaction(
     transaction: TransactionOut = Depends(get_owned_transaction),
 ) -> TransactionDetailOut:
     contributions = db.get_contribution_details_by_transaction(transaction.id)
+    categories = db.get_categories_by_transaction(transaction.id)
     return TransactionDetailOut(
         id=transaction.id,
         space_id=transaction.space_id,
@@ -37,6 +41,7 @@ def get_transaction(
         date=transaction.date,
         created_at=transaction.created_at,
         contributions=contributions,
+        categories=categories,
     )
 
 
@@ -132,3 +137,40 @@ def delete_contribution(
     if db.delete_account_transaction(account.id, transaction.id):
         return
     raise HTTPException(status_code=500, detail="Failed to remove contribution")
+
+
+# --- Categories ---
+
+
+@transactions_router.get("/transactions/{transaction_id}/categories")
+def get_transaction_categories(
+    transaction: TransactionOut = Depends(get_owned_transaction),
+) -> list[CategoryOut]:
+    return db.get_categories_by_transaction(transaction.id)
+
+
+@transactions_router.post(
+    "/transactions/{transaction_id}/categories", status_code=201
+)
+def add_transaction_category(
+    category_id: int,
+    transaction: TransactionOut = Depends(get_owned_transaction),
+) -> TransactionCategoryOut:
+    if not db.get_category(category_id):
+        raise HTTPException(status_code=404, detail="Category not found")
+    link_data = TransactionCategoryCreate(
+        transaction_id=transaction.id, category_id=category_id
+    )
+    return db.insert_transaction_category(link_data)
+
+
+@transactions_router.delete(
+    "/transactions/{transaction_id}/categories/{category_id}", status_code=204
+)
+def remove_transaction_category(
+    category_id: int,
+    transaction: TransactionOut = Depends(get_owned_transaction),
+):
+    if db.delete_transaction_category(transaction.id, category_id):
+        return
+    raise HTTPException(status_code=404, detail="Category not linked to transaction")
