@@ -39,6 +39,8 @@ def get_transaction(
         title=transaction.title,
         description=transaction.description,
         date=transaction.date,
+        type=transaction.type,
+        linked_transaction_id=transaction.linked_transaction_id,
         created_at=transaction.created_at,
         contributions=contributions,
         categories=categories,

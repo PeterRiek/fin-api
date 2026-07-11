@@ -2,8 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_db
 from app.routes.auth import get_current_user
-from app.routes.ownership import _find_user_person, get_owned_account
-from app.schemas import AccountCreate, AccountOut, UserOut
+from app.routes.ownership import _find_user_person, _find_user_space, get_owned_account
+from app.schemas import (
+    AccountBalanceOut,
+    AccountCreate,
+    AccountOut,
+    SimpleTransactionCreate,
+    TransactionDetailOut,
+    TransferCreate,
+    TransferOut,
+    UserOut,
+)
 
 accounts_router = APIRouter(prefix="/split", tags=["accounts"])
 
@@ -57,3 +66,42 @@ def delete_account(account: AccountOut = Depends(get_owned_account)):
 @accounts_router.get("/accounts/{account_id}/transactions")
 def get_account_transactions(account: AccountOut = Depends(get_owned_account)):
     return db.get_transactions_by_account(account.id)
+
+
+@accounts_router.get("/accounts/{account_id}/balance")
+def get_account_balance(
+    account: AccountOut = Depends(get_owned_account),
+) -> AccountBalanceOut:
+    return db.get_account_balance(account.id)
+
+
+@accounts_router.post("/accounts/{account_id}/transactions", status_code=201)
+def create_account_transaction(
+    transaction_data: SimpleTransactionCreate,
+    account: AccountOut = Depends(get_owned_account),
+    current_user: UserOut = Depends(get_current_user),
+) -> TransactionDetailOut:
+    if not _find_user_space(current_user.id, transaction_data.space_id):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to create transaction in this space"
+        )
+    return db.create_account_transaction(account.id, transaction_data)
+
+
+@accounts_router.post("/accounts/{account_id}/transfers", status_code=201)
+def create_transfer(
+    transfer_data: TransferCreate,
+    account: AccountOut = Depends(get_owned_account),
+    current_user: UserOut = Depends(get_current_user),
+) -> TransferOut:
+    if not _find_user_space(current_user.id, transfer_data.space_id):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to create transaction in this space"
+        )
+    if transfer_data.to_account_id == account.id:
+        raise HTTPException(
+            status_code=400, detail="Cannot transfer to the same account"
+        )
+    if not db.get_account(transfer_data.to_account_id):
+        raise HTTPException(status_code=404, detail="Destination account not found")
+    return db.create_transfer(account.id, transfer_data)

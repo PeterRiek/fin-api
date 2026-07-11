@@ -1,11 +1,17 @@
+import enum
 from datetime import date as dt_date, datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Enum as SAEnum, ForeignKey, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class TransactionType(str, enum.Enum):
+    EXPENSE = "expense"
+    INCOME = "income"
 
 
 class User(Base):
@@ -66,6 +72,16 @@ class Transaction(Base):
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date: Mapped[dt_date] = mapped_column(nullable=False)
+    type: Mapped[TransactionType] = mapped_column(
+        SAEnum(TransactionType, native_enum=False),
+        nullable=False,
+        default=TransactionType.EXPENSE,
+    )
+    # Set only for transfers: points at the counterpart leg (expense <-> income)
+    # booked on the other account. Both legs point at each other.
+    linked_transaction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(nullable=False)
 
     space: Mapped["Space"] = relationship(back_populates="transactions")

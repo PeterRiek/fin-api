@@ -13,11 +13,12 @@ from app.models import (
     TransactionCategory,
 )
 
-from sqlalchemy import create_engine, func
+from sqlalchemy import case, create_engine, func
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 
 from app.security import hash_password, verify_password
+from app.models import TransactionType
 from app.schemas import (
     PersonSpaceCreate,
     PersonSpaceOut,
@@ -28,12 +29,14 @@ from app.schemas import (
     PersonSummaryOut,
     AccountCreate,
     AccountOut,
+    AccountBalanceOut,
     SpaceCreate,
     SpaceOut,
     SpaceSummaryOut,
     SpaceUserCreate,
     SpaceUserOut,
     TransactionCreate,
+    TransactionDetailOut,
     TransactionOut,
     ContributionCreate,
     ContributionOut,
@@ -43,6 +46,9 @@ from app.schemas import (
     CategoryOut,
     TransactionCategoryCreate,
     TransactionCategoryOut,
+    SimpleTransactionCreate,
+    TransferCreate,
+    TransferOut,
 )
 
 
@@ -290,6 +296,29 @@ class Database:
             s.delete(account)
             return True
 
+    def get_account_balance(self, account_id: int) -> AccountBalanceOut:
+        with self.session() as s:
+            balance = (
+                s.query(
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (
+                                    Transaction.type == TransactionType.INCOME,
+                                    AccountTransaction.amount_paid,
+                                ),
+                                else_=-AccountTransaction.amount_paid,
+                            )
+                        ),
+                        0.0,
+                    )
+                )
+                .join(Transaction, AccountTransaction.transaction_id == Transaction.id)
+                .filter(AccountTransaction.account_id == account_id)
+                .scalar()
+            )
+            return AccountBalanceOut(account_id=account_id, balance=round(balance, 2))
+
     # ---------- Space ----------
 
     def insert_space(self, data: SpaceCreate) -> SpaceOut:
@@ -460,6 +489,7 @@ class Database:
                 title=data.title,
                 description=data.description,
                 date=data.date,
+                type=data.type,
                 created_at=datetime.now(),
             )
             s.add(transaction)
@@ -522,6 +552,7 @@ class Database:
             transaction.title = data.title
             transaction.description = data.description
             transaction.date = data.date
+            transaction.type = data.type
             return TransactionOut.model_validate(transaction)
 
     def delete_transaction(self, transaction_id: int) -> bool:
@@ -529,8 +560,132 @@ class Database:
             transaction = s.query(Transaction).filter_by(id=transaction_id).first()
             if not transaction:
                 return False
+            linked_id = transaction.linked_transaction_id
             s.delete(transaction)
+            if linked_id is not None:
+                linked = s.query(Transaction).filter_by(id=linked_id).first()
+                if linked:
+                    s.delete(linked)
             return True
+
+    def create_account_transaction(
+        self, account_id: int, data: SimpleTransactionCreate
+    ) -> TransactionDetailOut:
+        with self.session() as s:
+            transaction = Transaction(
+                space_id=data.space_id,
+                title=data.title,
+                description=data.description,
+                date=data.date,
+                type=data.type,
+                created_at=datetime.now(),
+            )
+            s.add(transaction)
+            s.flush()
+
+            s.add(
+                AccountTransaction(
+                    account_id=account_id,
+                    transaction_id=transaction.id,
+                    amount_requested=data.amount,
+                    amount_paid=data.amount,
+                    is_initial=True,
+                )
+            )
+            if data.category_id is not None:
+                s.add(
+                    TransactionCategory(
+                        transaction_id=transaction.id, category_id=data.category_id
+                    )
+                )
+            s.flush()
+
+            person_name = (
+                s.query(Person.name)
+                .join(Account, Account.person_id == Person.id)
+                .filter(Account.id == account_id)
+                .scalar()
+            )
+            categories = (
+                s.query(Category)
+                .join(
+                    TransactionCategory, Category.id == TransactionCategory.category_id
+                )
+                .filter(TransactionCategory.transaction_id == transaction.id)
+                .all()
+            )
+            return TransactionDetailOut(
+                id=transaction.id,
+                space_id=transaction.space_id,
+                title=transaction.title,
+                description=transaction.description,
+                date=transaction.date,
+                type=transaction.type,
+                linked_transaction_id=transaction.linked_transaction_id,
+                created_at=transaction.created_at,
+                contributions=[
+                    ContributionDetailOut(
+                        account_id=account_id,
+                        person_name=person_name,
+                        amount_requested=data.amount,
+                        amount_paid=data.amount,
+                        is_initial=True,
+                    )
+                ],
+                categories=[CategoryOut.model_validate(c) for c in categories],
+            )
+
+    def create_transfer(
+        self, from_account_id: int, data: TransferCreate
+    ) -> TransferOut:
+        with self.session() as s:
+            now = datetime.now()
+            out_transaction = Transaction(
+                space_id=data.space_id,
+                title=data.title,
+                description=data.description,
+                date=data.date,
+                type=TransactionType.EXPENSE,
+                created_at=now,
+            )
+            in_transaction = Transaction(
+                space_id=data.space_id,
+                title=data.title,
+                description=data.description,
+                date=data.date,
+                type=TransactionType.INCOME,
+                created_at=now,
+            )
+            s.add_all([out_transaction, in_transaction])
+            s.flush()
+
+            out_transaction.linked_transaction_id = in_transaction.id
+            in_transaction.linked_transaction_id = out_transaction.id
+
+            s.add_all(
+                [
+                    AccountTransaction(
+                        account_id=from_account_id,
+                        transaction_id=out_transaction.id,
+                        amount_requested=data.amount,
+                        amount_paid=data.amount,
+                        is_initial=True,
+                    ),
+                    AccountTransaction(
+                        account_id=data.to_account_id,
+                        transaction_id=in_transaction.id,
+                        amount_requested=data.amount,
+                        amount_paid=data.amount,
+                        is_initial=True,
+                    ),
+                ]
+            )
+            s.flush()
+
+            return TransferOut(
+                out_transaction=TransactionOut.model_validate(out_transaction),
+                in_transaction=TransactionOut.model_validate(in_transaction),
+            )
 
     # ---------- AccountTransaction (Contribution) ----------
 
@@ -767,7 +922,9 @@ class Database:
             )
             return [TransactionOut.model_validate(r) for r in rows]
 
-    def delete_transaction_category(self, transaction_id: int, category_id: int) -> bool:
+    def delete_transaction_category(
+        self, transaction_id: int, category_id: int
+    ) -> bool:
         with self.session() as s:
             transaction_category = (
                 s.query(TransactionCategory)

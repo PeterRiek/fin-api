@@ -2,6 +2,8 @@ from datetime import date as dt_date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models import TransactionType
+
 
 # ---------- User ----------
 
@@ -96,6 +98,7 @@ class TransactionCreate(BaseModel):
     title: str
     description: str | None = None
     date: dt_date
+    type: TransactionType = TransactionType.EXPENSE
 
 
 class TransactionOut(BaseModel):
@@ -106,6 +109,8 @@ class TransactionOut(BaseModel):
     title: str
     description: str | None
     date: dt_date
+    type: TransactionType
+    linked_transaction_id: int | None
     created_at: datetime
 
 
@@ -136,6 +141,38 @@ class ContributionDetailOut(BaseModel):
     amount_requested: float
     amount_paid: float
     is_initial: bool
+
+
+# ---------- Account transactions (income / expense / transfer) ----------
+
+
+class SimpleTransactionCreate(BaseModel):
+    space_id: int
+    title: str
+    description: str | None = None
+    date: dt_date
+    type: TransactionType = TransactionType.EXPENSE
+    amount: float
+    category_id: int | None = None
+
+
+class TransferCreate(BaseModel):
+    space_id: int
+    to_account_id: int
+    amount: float
+    date: dt_date
+    title: str
+    description: str | None = None
+
+
+class TransferOut(BaseModel):
+    out_transaction: TransactionOut
+    in_transaction: TransactionOut
+
+
+class AccountBalanceOut(BaseModel):
+    account_id: int
+    balance: float
 
 
 # ---------- PersonSpace ----------
@@ -198,6 +235,8 @@ class TransactionDetailOut(BaseModel):
     title: str
     description: str | None
     date: dt_date
+    type: TransactionType
+    linked_transaction_id: int | None
     created_at: datetime
     contributions: list[ContributionDetailOut]
     categories: list[CategoryOut]
