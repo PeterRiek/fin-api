@@ -187,7 +187,9 @@ class Database:
             s.delete(person)
             return True
 
-    def get_person_summary(self, person_id: int) -> PersonSummaryOut | None:
+    def get_person_summary(
+        self, person_id: int, user_id: int
+    ) -> PersonSummaryOut | None:
         with self.session() as s:
             person = s.query(Person).filter_by(id=person_id).first()
             if not person:
@@ -203,14 +205,24 @@ class Database:
                     )
                 )
                 .join(Account, AccountTransaction.account_id == Account.id)
-                .filter(Account.person_id == person_id)
+                .join(
+                    Transaction,
+                    AccountTransaction.transaction_id == Transaction.id,
+                )
+                .join(SpaceUser, Transaction.space_id == SpaceUser.space_id)
+                .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)
                 .scalar()
             )
             accounts = s.query(Account).filter_by(person_id=person_id).all()
             transaction_count = (
                 s.query(AccountTransaction)
                 .join(Account, AccountTransaction.account_id == Account.id)
-                .filter(Account.person_id == person_id)
+                .join(
+                    Transaction,
+                    AccountTransaction.transaction_id == Transaction.id,
+                )
+                .join(SpaceUser, Transaction.space_id == SpaceUser.space_id)
+                .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)
                 .count()
             )
             return PersonSummaryOut(
@@ -482,7 +494,9 @@ class Database:
             )
             return [TransactionOut.model_validate(r) for r in rows]
 
-    def get_transactions_by_person(self, person_id: int) -> list[TransactionOut]:
+    def get_transactions_by_person(
+        self, person_id: int, user_id: int
+    ) -> list[TransactionOut]:
         with self.session() as s:
             rows = (
                 s.query(Transaction)
@@ -491,7 +505,8 @@ class Database:
                     Transaction.id == AccountTransaction.transaction_id,
                 )
                 .join(Account, AccountTransaction.account_id == Account.id)
-                .filter(Account.person_id == person_id)
+                .join(SpaceUser, Transaction.space_id == SpaceUser.space_id)
+                .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)
                 .all()
             )
             return [TransactionOut.model_validate(r) for r in rows]

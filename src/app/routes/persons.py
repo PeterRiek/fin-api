@@ -44,8 +44,11 @@ def delete_person(person: PersonOut = Depends(get_owned_person)):
 
 
 @persons_router.get("/persons/{person_id}/transactions")
-def get_person_transactions(person: PersonOut = Depends(get_owned_person)):
-    return db.get_transactions_by_person(person.id)
+def get_person_transactions(
+    person: PersonOut = Depends(get_owned_person),
+    current_user: UserOut = Depends(get_current_user),
+):
+    return db.get_transactions_by_person(person.id, current_user.id)
 
 
 @persons_router.get("/persons/{person_id}/accounts")
@@ -56,8 +59,9 @@ def get_person_accounts(person: PersonOut = Depends(get_owned_person)):
 @persons_router.get("/persons/{person_id}/summary")
 def get_person_summary(
     person: PersonOut = Depends(get_owned_person),
+    current_user: UserOut = Depends(get_current_user),
 ) -> PersonSummaryOut:
-    summary = db.get_person_summary(person.id)
+    summary = db.get_person_summary(person.id, current_user.id)
     if not summary:
         raise HTTPException(status_code=404, detail="Person not found")
     return summary

@@ -72,3 +72,85 @@ def test_get_person_missing_returns_404(client, register_and_login):
     headers = register_and_login("alice")
     response = client.get("/split/persons/999", headers=headers)
     assert response.status_code == 404
+
+
+def _contribute(client, headers, transaction_id, account_id, requested, paid):
+    client.post(
+        f"/split/transactions/{transaction_id}/contributions",
+        json={
+            "account_id": account_id,
+            "transaction_id": transaction_id,
+            "amount_requested": requested,
+            "amount_paid": paid,
+        },
+        headers=headers,
+    )
+
+
+def test_person_transactions_and_summary_scoped_to_shared_spaces(
+    client, register_and_login
+):
+    # Anyone can add an existing person to their own space (by design), but a
+    # user must only see that person's activity in spaces they share with them.
+    alice_headers = register_and_login("alice")
+    alice_space = _create_space(client, alice_headers, "Alice's household")
+    grace = _create_person_in_space(client, alice_headers, alice_space["id"])
+    grace_account = client.post(
+        "/split/accounts",
+        json={"name": "Grace's account", "person_id": grace["id"]},
+        headers=alice_headers,
+    ).json()
+    alice_transaction = client.post(
+        "/split/transactions",
+        json={
+            "space_id": alice_space["id"],
+            "title": "Rent",
+            "date": "2026-01-01",
+        },
+        headers=alice_headers,
+    ).json()
+    _contribute(
+        client, alice_headers, alice_transaction["id"], grace_account["id"], 20.0, 0.0
+    )
+
+    bob_headers = register_and_login("bob")
+    bob_space = _create_space(client, bob_headers, "Bob's household")
+    client.post(
+        f"/split/spaces/{bob_space['id']}/persons",
+        params={"person_id": grace["id"]},
+        headers=bob_headers,
+    )
+    bob_transaction = client.post(
+        "/split/transactions",
+        json={
+            "space_id": bob_space["id"],
+            "title": "Bob's trip",
+            "date": "2026-02-01",
+        },
+        headers=bob_headers,
+    ).json()
+    _contribute(
+        client, bob_headers, bob_transaction["id"], grace_account["id"], 500.0, 0.0
+    )
+
+    response = client.get(
+        f"/split/persons/{grace['id']}/transactions", headers=alice_headers
+    )
+    assert [t["id"] for t in response.json()] == [alice_transaction["id"]]
+
+    summary = client.get(
+        f"/split/persons/{grace['id']}/summary", headers=alice_headers
+    ).json()
+    assert summary["transaction_count"] == 1
+    assert summary["net_balance"] == -20.0
+
+    response = client.get(
+        f"/split/persons/{grace['id']}/transactions", headers=bob_headers
+    )
+    assert [t["id"] for t in response.json()] == [bob_transaction["id"]]
+
+    summary = client.get(
+        f"/split/persons/{grace['id']}/summary", headers=bob_headers
+    ).json()
+    assert summary["transaction_count"] == 1
+    assert summary["net_balance"] == -500.0

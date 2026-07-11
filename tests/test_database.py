@@ -227,10 +227,11 @@ def test_get_transactions_by_account_and_person(transaction_world):
     db = transaction_world["db"]
     account = transaction_world["account"]
     person = transaction_world["person"]
+    user = transaction_world["user"]
     transaction = transaction_world["transaction"]
 
     assert db.get_transactions_by_account(account.id) == [transaction]
-    assert db.get_transactions_by_person(person.id) == [transaction]
+    assert db.get_transactions_by_person(person.id, user.id) == [transaction]
 
 
 def test_account_transaction_crud(transaction_world):
