@@ -33,7 +33,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserOut:
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        user = db.get_user(user_id)
+        user = db.users.get(user_id)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         return user
@@ -46,7 +46,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserOut:
 )
 def register(data: UserCreate, db: Database = Depends(get_db)) -> UserOut:
     try:
-        return db.insert_user(data)
+        return db.users.insert(data)
     except IntegrityError:
         raise HTTPException(
             status_code=400, detail="username or email already registered"
@@ -57,7 +57,7 @@ def register(data: UserCreate, db: Database = Depends(get_db)) -> UserOut:
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Database = Depends(get_db)
 ) -> Token:
-    user = db.authenticate_user(form_data.username, form_data.password)
+    user = db.users.authenticate(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

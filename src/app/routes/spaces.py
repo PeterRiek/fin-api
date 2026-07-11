@@ -26,18 +26,18 @@ db = get_db()
 def get_spaces(
     current_user: UserOut = Depends(get_current_user),
 ) -> list[SpaceSummaryOut]:
-    return db.get_space_summaries_by_user(current_user.id)
+    return db.spaces.get_summaries_by_user(current_user.id)
 
 
 @spaces_router.post("/spaces", status_code=201)
 def create_space(
     space_data: SpaceCreate, current_user: UserOut = Depends(get_current_user)
 ):
-    space = db.insert_space(space_data)
+    space = db.spaces.insert(space_data)
     space_user = SpaceUserCreate(
         space_id=space.id, user_id=current_user.id, is_owner=True
     )
-    db.insert_space_user(space_user)
+    db.space_users.insert(space_user)
     return space
 
 
@@ -48,7 +48,7 @@ def get_space(space: SpaceOut = Depends(get_owned_space)):
 
 @spaces_router.delete("/spaces/{space_id}", status_code=204)
 def delete_space(space: SpaceOut = Depends(get_owned_space)):
-    if db.delete_space(space.id):
+    if db.spaces.delete(space.id):
         return
     raise HTTPException(status_code=500, detail="Failed to delete space")
 
@@ -58,7 +58,7 @@ def update_space(
     space_data: SpaceCreate,
     space: SpaceOut = Depends(get_owned_space),
 ):
-    updated_space = db.update_space(space.id, space_data)
+    updated_space = db.spaces.update(space.id, space_data)
     if not updated_space:
         raise HTTPException(status_code=500, detail="Failed to update space")
     return updated_space
@@ -69,7 +69,7 @@ def update_space(
 
 @spaces_router.get("/spaces/{space_id}/users")
 def get_space_users(space: SpaceOut = Depends(get_owned_space)):
-    return db.get_users_by_space(space.id)
+    return db.users.get_by_space(space.id)
 
 
 @spaces_router.post("/spaces/{space_id}/users", status_code=201)
@@ -77,7 +77,7 @@ def add_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
     space_user_create = SpaceUserCreate(
         space_id=space.id, user_id=user_id, is_owner=False
     )
-    space_user_out = db.insert_space_user(space_user_create)
+    space_user_out = db.space_users.insert(space_user_create)
     if not space_user_out:
         raise HTTPException(status_code=500, detail="Failed to add user to space")
     return space_user_out
@@ -85,7 +85,7 @@ def add_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
 
 @spaces_router.delete("/spaces/{space_id}/users/{user_id}", status_code=204)
 def remove_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
-    if db.delete_space_user(space.id, user_id):
+    if db.space_users.delete(space.id, user_id):
         return
     raise HTTPException(status_code=500, detail="Failed to remove user from space")
 
@@ -95,13 +95,13 @@ def remove_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
 
 @spaces_router.get("/spaces/{space_id}/persons")
 def get_space_persons(space: SpaceOut = Depends(get_owned_space)):
-    return db.get_persons_by_space(space.id)
+    return db.persons.get_by_space(space.id)
 
 
 @spaces_router.post("/spaces/{space_id}/persons", status_code=201)
 def add_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space)):
     person_space_create = PersonSpaceCreate(space_id=space.id, person_id=person_id)
-    person_space_out = db.insert_person_space(person_space_create)
+    person_space_out = db.person_spaces.insert(person_space_create)
     if not person_space_out:
         raise HTTPException(status_code=500, detail="Failed to add person to space")
     return person_space_out
@@ -109,14 +109,14 @@ def add_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space))
 
 @spaces_router.delete("/spaces/{space_id}/persons/{person_id}", status_code=204)
 def remove_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space)):
-    if db.delete_person_space(space.id, person_id):
+    if db.person_spaces.delete(space.id, person_id):
         return
     raise HTTPException(status_code=500, detail="Failed to remove person from space")
 
 
 @spaces_router.get("/spaces/{space_id}/transactions")
 def get_space_transactions(space: SpaceOut = Depends(get_owned_space)):
-    return db.get_transactions_by_space(space.id)
+    return db.transactions.get_by_space(space.id)
 
 
 # --- Composite views ---
@@ -126,15 +126,15 @@ def get_space_transactions(space: SpaceOut = Depends(get_owned_space)):
 def get_space_overview(
     space: SpaceOut = Depends(get_owned_space),
 ) -> SpaceOverviewOut:
-    transactions = db.get_transactions_by_space(space.id)
+    transactions = db.transactions.get_by_space(space.id)
     recent_transactions = sorted(transactions, key=lambda t: t.date, reverse=True)[:5]
     return SpaceOverviewOut(
         id=space.id,
         name=space.name,
         description=space.description,
         created_at=space.created_at,
-        users=db.get_users_by_space(space.id),
-        persons=db.get_persons_by_space(space.id),
+        users=db.users.get_by_space(space.id),
+        persons=db.persons.get_by_space(space.id),
         transaction_count=len(transactions),
         recent_transactions=recent_transactions,
     )
@@ -144,4 +144,4 @@ def get_space_overview(
 def get_space_balances(
     space: SpaceOut = Depends(get_owned_space),
 ) -> list[PersonBalanceOut]:
-    return db.get_person_balances_by_space(space.id)
+    return db.spaces.get_person_balances(space.id)

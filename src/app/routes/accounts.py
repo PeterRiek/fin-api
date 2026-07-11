@@ -21,7 +21,7 @@ db = get_db()
 
 @accounts_router.get("/accounts")
 def get_accounts(current_user: UserOut = Depends(get_current_user)):
-    return db.get_accounts_by_user(current_user.id)
+    return db.accounts.get_by_user(current_user.id)
 
 
 @accounts_router.post("/accounts", status_code=201)
@@ -32,7 +32,7 @@ def create_account(
         raise HTTPException(
             status_code=403, detail="Not authorized to create account for this person"
         )
-    return db.insert_account(account_data)
+    return db.accounts.insert(account_data)
 
 
 @accounts_router.get("/accounts/{account_id}")
@@ -50,7 +50,7 @@ def update_account(
         raise HTTPException(
             status_code=403, detail="Not authorized to assign account to this person"
         )
-    updated_account = db.update_account(account.id, account_data)
+    updated_account = db.accounts.update(account.id, account_data)
     if not updated_account:
         raise HTTPException(status_code=500, detail="Failed to update account")
     return updated_account
@@ -58,21 +58,21 @@ def update_account(
 
 @accounts_router.delete("/accounts/{account_id}", status_code=204)
 def delete_account(account: AccountOut = Depends(get_owned_account)):
-    if db.delete_account(account.id):
+    if db.accounts.delete(account.id):
         return
     raise HTTPException(status_code=500, detail="Failed to delete account")
 
 
 @accounts_router.get("/accounts/{account_id}/transactions")
 def get_account_transactions(account: AccountOut = Depends(get_owned_account)):
-    return db.get_transactions_by_account(account.id)
+    return db.transactions.get_by_account(account.id)
 
 
 @accounts_router.get("/accounts/{account_id}/balance")
 def get_account_balance(
     account: AccountOut = Depends(get_owned_account),
 ) -> AccountBalanceOut:
-    return db.get_account_balance(account.id)
+    return db.accounts.get_balance(account.id)
 
 
 @accounts_router.post("/accounts/{account_id}/transactions", status_code=201)
@@ -85,7 +85,7 @@ def create_account_transaction(
         raise HTTPException(
             status_code=403, detail="Not authorized to create transaction in this space"
         )
-    return db.create_account_transaction(account.id, transaction_data)
+    return db.accounts.create_transaction(account.id, transaction_data)
 
 
 @accounts_router.post("/accounts/{account_id}/transfers", status_code=201)
@@ -102,6 +102,6 @@ def create_transfer(
         raise HTTPException(
             status_code=400, detail="Cannot transfer to the same account"
         )
-    if not db.get_account(transfer_data.to_account_id):
+    if not db.accounts.get(transfer_data.to_account_id):
         raise HTTPException(status_code=404, detail="Destination account not found")
-    return db.create_transfer(account.id, transfer_data)
+    return db.accounts.create_transfer(account.id, transfer_data)

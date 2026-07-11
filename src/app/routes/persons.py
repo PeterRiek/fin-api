@@ -12,12 +12,12 @@ db = get_db()
 
 @persons_router.get("/persons")
 def get_persons(current_user: UserOut = Depends(get_current_user)):
-    return db.get_persons_by_user(current_user.id)
+    return db.persons.get_by_user(current_user.id)
 
 
 @persons_router.post("/persons", status_code=201)
 def create_person(person_data: PersonCreate, _: UserOut = Depends(get_current_user)):
-    return db.insert_person(person_data)
+    return db.persons.insert(person_data)
 
 
 @persons_router.get("/persons/{person_id}")
@@ -30,7 +30,7 @@ def update_person(
     person_data: PersonCreate,
     person: PersonOut = Depends(get_owned_person),
 ):
-    updated_person = db.update_person(person.id, person_data)
+    updated_person = db.persons.update(person.id, person_data)
     if not updated_person:
         raise HTTPException(status_code=500, detail="Failed to update person")
     return updated_person
@@ -38,7 +38,7 @@ def update_person(
 
 @persons_router.delete("/persons/{person_id}", status_code=204)
 def delete_person(person: PersonOut = Depends(get_owned_person)):
-    if db.delete_person(person.id):
+    if db.persons.delete(person.id):
         return
     raise HTTPException(status_code=500, detail="Failed to delete person")
 
@@ -48,12 +48,12 @@ def get_person_transactions(
     person: PersonOut = Depends(get_owned_person),
     current_user: UserOut = Depends(get_current_user),
 ):
-    return db.get_transactions_by_person(person.id, current_user.id)
+    return db.transactions.get_by_person(person.id, current_user.id)
 
 
 @persons_router.get("/persons/{person_id}/accounts")
 def get_person_accounts(person: PersonOut = Depends(get_owned_person)):
-    return db.get_accounts_by_person(person.id)
+    return db.accounts.get_by_person(person.id)
 
 
 @persons_router.get("/persons/{person_id}/summary")
@@ -61,7 +61,7 @@ def get_person_summary(
     person: PersonOut = Depends(get_owned_person),
     current_user: UserOut = Depends(get_current_user),
 ) -> PersonSummaryOut:
-    summary = db.get_person_summary(person.id, current_user.id)
+    summary = db.persons.get_summary(person.id, current_user.id)
     if not summary:
         raise HTTPException(status_code=404, detail="Person not found")
     return summary

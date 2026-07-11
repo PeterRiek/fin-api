@@ -8,7 +8,7 @@ db = get_db()
 
 
 def _find_user_space(user_id: int, space_id: int) -> SpaceOut | None:
-    spaces = db.get_spaces_by_user(user_id)
+    spaces = db.spaces.get_by_user(user_id)
     return next((s for s in spaces if s.id == space_id), None)
 
 
@@ -22,7 +22,7 @@ def get_owned_space(
 
 
 def _find_user_person(user_id: int, person_id: int) -> PersonOut | None:
-    persons = db.get_persons_by_user(user_id)
+    persons = db.persons.get_by_user(user_id)
     return next((p for p in persons if p.id == person_id), None)
 
 
@@ -36,7 +36,7 @@ def get_owned_person(
 
 
 def _find_user_account(user_id: int, account_id: int) -> AccountOut | None:
-    accounts = db.get_accounts_by_user(user_id)
+    accounts = db.accounts.get_by_user(user_id)
     return next((a for a in accounts if a.id == account_id), None)
 
 
@@ -52,7 +52,7 @@ def get_owned_account(
 def get_owned_transaction(
     transaction_id: int, current_user: UserOut = Depends(get_current_user)
 ) -> TransactionOut:
-    transaction = db.get_transaction(transaction_id)
+    transaction = db.transactions.get(transaction_id)
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     if not _find_user_space(current_user.id, transaction.space_id):
