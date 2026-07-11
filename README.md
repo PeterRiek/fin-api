@@ -49,6 +49,23 @@ uv run uvicorn app.api:app --reload --app-dir src
 
 API docs are served at `/docs` once running.
 
+### Docker
+
+```bash
+docker build -t fin .
+docker run -d --name fin -p 8000:8000 \
+  -e AUTH_SECRET_KEY="$(openssl rand -hex 32)" \
+  -e DATABASE_URI="sqlite:////app/data/sqlite3.db" \
+  -v fin-data:/app/data \
+  fin
+```
+
+`DATABASE_URI` must point at a file (not the `sqlite:///:memory:` default) —
+each pooled connection to an in-memory sqlite DB is a separate empty
+database, so requests would randomly fail with "no such table". Mount a
+volume at `/app/data` (as above) so the sqlite file survives container
+restarts.
+
 ## Test
 
 ```bash
