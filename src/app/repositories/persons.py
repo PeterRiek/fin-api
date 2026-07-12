@@ -4,7 +4,7 @@ from sqlalchemy import func
 
 from app.models import (
     Account,
-    AccountTransaction,
+    Contribution,
     Person,
     PersonSpace,
     SpaceUser,
@@ -78,19 +78,11 @@ class PersonRepository(BaseRepository):
             if not person:
                 return None
             net_balance = (
-                s.query(
-                    func.coalesce(
-                        func.sum(
-                            AccountTransaction.amount_paid
-                            - AccountTransaction.amount_requested
-                        ),
-                        0.0,
-                    )
-                )
-                .join(Account, AccountTransaction.account_id == Account.id)
+                s.query(func.coalesce(func.sum(Contribution.liability_amount), 0.0))
+                .join(Account, Contribution.account_id == Account.id)
                 .join(
                     Transaction,
-                    AccountTransaction.transaction_id == Transaction.id,
+                    Contribution.transaction_id == Transaction.id,
                 )
                 .join(SpaceUser, Transaction.space_id == SpaceUser.space_id)
                 .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)
@@ -98,11 +90,11 @@ class PersonRepository(BaseRepository):
             )
             accounts = s.query(Account).filter_by(person_id=person_id).all()
             transaction_count = (
-                s.query(AccountTransaction)
-                .join(Account, AccountTransaction.account_id == Account.id)
+                s.query(Contribution)
+                .join(Account, Contribution.account_id == Account.id)
                 .join(
                     Transaction,
-                    AccountTransaction.transaction_id == Transaction.id,
+                    Contribution.transaction_id == Transaction.id,
                 )
                 .join(SpaceUser, Transaction.space_id == SpaceUser.space_id)
                 .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)

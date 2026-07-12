@@ -180,7 +180,7 @@ def test_delete_space_user_and_person_space(world):
     assert db.persons.get_by_space(space.id) == []
 
 
-# ---------- Transaction / AccountTransaction (contributions) ----------
+# ---------- Transaction / Contribution ----------
 
 
 @pytest.fixture
@@ -193,9 +193,8 @@ def transaction_world(world):
         ContributionCreate(
             account_id=account.id,
             transaction_id=transaction.id,
-            amount_requested=50.0,
-            amount_paid=50.0,
-            is_initial=True,
+            real_amount=-50.0,
+            liability_amount=0.0,
         )
     )
     world["transaction"] = transaction
@@ -249,13 +248,12 @@ def test_account_transaction_crud(transaction_world):
         ContributionCreate(
             account_id=account.id,
             transaction_id=transaction.id,
-            amount_requested=75.0,
-            amount_paid=25.0,
-            is_initial=False,
+            real_amount=-25.0,
+            liability_amount=-50.0,
         ),
     )
-    assert updated.amount_requested == 75.0
-    assert updated.amount_paid == 25.0
+    assert updated.real_amount == -25.0
+    assert updated.liability_amount == -50.0
 
     assert db.contributions.delete(account.id, transaction.id) is True
     assert db.contributions.get(account.id, transaction.id) is None

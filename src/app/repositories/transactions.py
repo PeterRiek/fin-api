@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.models import Account, AccountTransaction, SpaceUser, Transaction
+from app.models import Account, Contribution, SpaceUser, Transaction
 from app.repositories.base import BaseRepository
 from app.schemas import TransactionCreate, TransactionOut
 
@@ -40,10 +40,10 @@ class TransactionRepository(BaseRepository):
             rows = (
                 s.query(Transaction)
                 .join(
-                    AccountTransaction,
-                    Transaction.id == AccountTransaction.transaction_id,
+                    Contribution,
+                    Transaction.id == Contribution.transaction_id,
                 )
-                .filter(AccountTransaction.account_id == account_id)
+                .filter(Contribution.account_id == account_id)
                 .all()
             )
             return [TransactionOut.model_validate(r) for r in rows]
@@ -53,10 +53,10 @@ class TransactionRepository(BaseRepository):
             rows = (
                 s.query(Transaction)
                 .join(
-                    AccountTransaction,
-                    Transaction.id == AccountTransaction.transaction_id,
+                    Contribution,
+                    Transaction.id == Contribution.transaction_id,
                 )
-                .join(Account, AccountTransaction.account_id == Account.id)
+                .join(Account, Contribution.account_id == Account.id)
                 .join(SpaceUser, Transaction.space_id == SpaceUser.space_id)
                 .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)
                 .all()

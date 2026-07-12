@@ -114,15 +114,14 @@ class TransactionOut(BaseModel):
     created_at: datetime
 
 
-# ---------- Contribution (AccountTransaction) ----------
+# ---------- Contribution ----------
 
 
 class ContributionCreate(BaseModel):
     account_id: int
     transaction_id: int
-    amount_requested: float
-    amount_paid: float
-    is_initial: bool = False
+    real_amount: float
+    liability_amount: float
 
 
 class ContributionOut(BaseModel):
@@ -130,17 +129,15 @@ class ContributionOut(BaseModel):
 
     account_id: int
     transaction_id: int
-    amount_requested: float
-    amount_paid: float
-    is_initial: bool
+    real_amount: float
+    liability_amount: float
 
 
 class ContributionDetailOut(BaseModel):
     account_id: int
     person_name: str
-    amount_requested: float
-    amount_paid: float
-    is_initial: bool
+    real_amount: float
+    liability_amount: float
 
 
 # ---------- Account transactions (income / expense / transfer) ----------
@@ -163,6 +160,7 @@ class TransferCreate(BaseModel):
     date: dt_date
     title: str
     description: str | None = None
+    affects_balance: bool = False
 
 
 class TransferOut(BaseModel):

@@ -74,14 +74,16 @@ def test_get_person_missing_returns_404(client, register_and_login):
     assert response.status_code == 404
 
 
-def _contribute(client, headers, transaction_id, account_id, requested, paid):
+def _contribute(
+    client, headers, transaction_id, account_id, liability_amount, real_amount=0.0
+):
     client.post(
         f"/split/transactions/{transaction_id}/contributions",
         json={
             "account_id": account_id,
             "transaction_id": transaction_id,
-            "amount_requested": requested,
-            "amount_paid": paid,
+            "real_amount": real_amount,
+            "liability_amount": liability_amount,
         },
         headers=headers,
     )
@@ -110,7 +112,7 @@ def test_person_transactions_and_summary_scoped_to_shared_spaces(
         headers=alice_headers,
     ).json()
     _contribute(
-        client, alice_headers, alice_transaction["id"], grace_account["id"], 20.0, 0.0
+        client, alice_headers, alice_transaction["id"], grace_account["id"], -20.0
     )
 
     bob_headers = register_and_login("bob")
@@ -130,7 +132,7 @@ def test_person_transactions_and_summary_scoped_to_shared_spaces(
         headers=bob_headers,
     ).json()
     _contribute(
-        client, bob_headers, bob_transaction["id"], grace_account["id"], 500.0, 0.0
+        client, bob_headers, bob_transaction["id"], grace_account["id"], -500.0
     )
 
     response = client.get(

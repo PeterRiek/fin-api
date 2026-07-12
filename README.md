@@ -10,11 +10,12 @@ between people, and tracking personal expenses along the way.
 - **Person** — someone expenses are tracked for; not every person needs a login.
 - **Account** — belongs to a person, holds their side of contributions.
 - **Transaction** — a single expense (title, date, description) in a space.
-- **Contribution** (`AccountTransaction`) — one account's share of a transaction:
-  `amount_requested` (what they owe) vs `amount_paid` (what they actually paid).
-  A transaction with one contribution where both amounts match is a plain
-  personal expense; multiple contributions with mismatched amounts is a
-  shared/split expense with a balance owed.
+- **Contribution** — one account's leg of a transaction, with two independent
+  signed amounts: `real_amount` (actual cash that moved, +in/-out — sums to
+  an account's cash balance) and `liability_amount` (how this leg shifts what
+  the group owes this account, +/- — sums to a person's IOU balance). A solo
+  personal expense has `liability_amount = 0`; a shared/split expense has
+  nonzero, offsetting `liability_amount`s across its contributions.
 - **Category** — a tag (e.g. "Rent", "Groceries") linkable to transactions.
 
 A person can belong to multiple spaces; a user only sees a person's

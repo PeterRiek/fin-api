@@ -32,9 +32,8 @@ def _add_split_transaction(client, headers, space, payer_account, other_account,
         json={
             "account_id": payer_account["id"],
             "transaction_id": transaction["id"],
-            "amount_requested": share,
-            "amount_paid": total,
-            "is_initial": True,
+            "real_amount": -total,
+            "liability_amount": share,
         },
         headers=headers,
     )
@@ -43,9 +42,8 @@ def _add_split_transaction(client, headers, space, payer_account, other_account,
         json={
             "account_id": other_account["id"],
             "transaction_id": transaction["id"],
-            "amount_requested": share,
-            "amount_paid": 0.0,
-            "is_initial": False,
+            "real_amount": 0.0,
+            "liability_amount": -share,
         },
         headers=headers,
     )
@@ -72,8 +70,8 @@ def test_transaction_detail_embeds_contributions_with_person_names(
     grace_contribution = next(
         c for c in body["contributions"] if c["person_name"] == "Grace"
     )
-    assert grace_contribution["amount_paid"] == 50.0
-    assert grace_contribution["amount_requested"] == 25.0
+    assert grace_contribution["real_amount"] == -50.0
+    assert grace_contribution["liability_amount"] == 25.0
 
 
 def test_space_balances_reflect_who_owes_whom(client, register_and_login):

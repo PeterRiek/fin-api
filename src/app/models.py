@@ -85,7 +85,7 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False)
 
     space: Mapped["Space"] = relationship(back_populates="transactions")
-    account_links: Mapped[list["AccountTransaction"]] = relationship(
+    contribution_links: Mapped[list["Contribution"]] = relationship(
         back_populates="transaction", cascade="all, delete-orphan"
     )
     category_links: Mapped[list["TransactionCategory"]] = relationship(
@@ -93,8 +93,8 @@ class Transaction(Base):
     )
 
 
-class AccountTransaction(Base):
-    __tablename__ = "account_transactions"
+class Contribution(Base):
+    __tablename__ = "contributions"
 
     account_id: Mapped[int] = mapped_column(
         ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
@@ -102,12 +102,18 @@ class AccountTransaction(Base):
     transaction_id: Mapped[int] = mapped_column(
         ForeignKey("transactions.id", ondelete="CASCADE"), primary_key=True
     )
-    amount_requested: Mapped[float] = mapped_column(nullable=False)
-    amount_paid: Mapped[float] = mapped_column(nullable=False)
-    is_initial: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # Signed real cash movement for this leg (+in/-out). Sum per account is
+    # the account's cash balance (AccountRepository.get_balance).
+    real_amount: Mapped[float] = mapped_column(nullable=False)
+    # Signed shift in what the group owes this account for this leg
+    # (+ = owed more / owes less, - = owes more / owed less). Sum per person
+    # is the IOU balance (PersonRepository.get_summary / net_balance).
+    liability_amount: Mapped[float] = mapped_column(nullable=False)
 
-    account: Mapped["Account"] = relationship(back_populates="transaction_links")
-    transaction: Mapped["Transaction"] = relationship(back_populates="account_links")
+    account: Mapped["Account"] = relationship(back_populates="contribution_links")
+    transaction: Mapped["Transaction"] = relationship(
+        back_populates="contribution_links"
+    )
 
 
 class Account(Base):
@@ -121,7 +127,7 @@ class Account(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False)
 
     person: Mapped["Person"] = relationship(back_populates="accounts")
-    transaction_links: Mapped[list["AccountTransaction"]] = relationship(
+    contribution_links: Mapped[list["Contribution"]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
 

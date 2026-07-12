@@ -4,7 +4,7 @@ from sqlalchemy import func
 
 from app.models import (
     Account,
-    AccountTransaction,
+    Contribution,
     Person,
     PersonSpace,
     Space,
@@ -86,18 +86,12 @@ class SpaceRepository(BaseRepository):
             for person in persons:
                 net_balance = (
                     s.query(
-                        func.coalesce(
-                            func.sum(
-                                AccountTransaction.amount_paid
-                                - AccountTransaction.amount_requested
-                            ),
-                            0.0,
-                        )
+                        func.coalesce(func.sum(Contribution.liability_amount), 0.0)
                     )
-                    .join(Account, AccountTransaction.account_id == Account.id)
+                    .join(Account, Contribution.account_id == Account.id)
                     .join(
                         Transaction,
-                        AccountTransaction.transaction_id == Transaction.id,
+                        Contribution.transaction_id == Transaction.id,
                     )
                     .filter(
                         Account.person_id == person.id, Transaction.space_id == space_id

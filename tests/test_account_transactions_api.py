@@ -37,7 +37,7 @@ def test_create_expense_reduces_balance(client, register_and_login):
     assert response.status_code == 201
     body = response.json()
     assert body["type"] == "expense"
-    assert body["contributions"][0]["amount_paid"] == 800.0
+    assert body["contributions"][0]["real_amount"] == -800.0
 
     balance = client.get(
         f"/split/accounts/{account['id']}/balance", headers=headers

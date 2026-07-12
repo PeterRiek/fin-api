@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import case, func
+from sqlalchemy import func
 
 from app.models import (
     Account,
-    AccountTransaction,
     Category,
+    Contribution,
     Person,
     PersonSpace,
     SpaceUser,
@@ -87,22 +87,8 @@ class AccountRepository(BaseRepository):
     def get_balance(self, account_id: int) -> AccountBalanceOut:
         with self.session() as s:
             balance = (
-                s.query(
-                    func.coalesce(
-                        func.sum(
-                            case(
-                                (
-                                    Transaction.type == TransactionType.INCOME,
-                                    AccountTransaction.amount_paid,
-                                ),
-                                else_=-AccountTransaction.amount_paid,
-                            )
-                        ),
-                        0.0,
-                    )
-                )
-                .join(Transaction, AccountTransaction.transaction_id == Transaction.id)
-                .filter(AccountTransaction.account_id == account_id)
+                s.query(func.coalesce(func.sum(Contribution.real_amount), 0.0))
+                .filter(Contribution.account_id == account_id)
                 .scalar()
             )
             return AccountBalanceOut(account_id=account_id, balance=round(balance, 2))
@@ -122,13 +108,17 @@ class AccountRepository(BaseRepository):
             s.add(transaction)
             s.flush()
 
+            # A solo transaction has no split, so it carries no liability
+            # shift; only the sign of the real cash movement depends on type.
+            real_amount = (
+                data.amount if data.type == TransactionType.INCOME else -data.amount
+            )
             s.add(
-                AccountTransaction(
+                Contribution(
                     account_id=account_id,
                     transaction_id=transaction.id,
-                    amount_requested=data.amount,
-                    amount_paid=data.amount,
-                    is_initial=True,
+                    real_amount=real_amount,
+                    liability_amount=0.0,
                 )
             )
             if data.category_id is not None:
@@ -166,9 +156,8 @@ class AccountRepository(BaseRepository):
                     ContributionDetailOut(
                         account_id=account_id,
                         person_name=person_name,
-                        amount_requested=data.amount,
-                        amount_paid=data.amount,
-                        is_initial=True,
+                        real_amount=real_amount,
+                        liability_amount=0.0,
                     )
                 ],
                 categories=[CategoryOut.model_validate(c) for c in categories],
@@ -201,21 +190,26 @@ class AccountRepository(BaseRepository):
             out_transaction.linked_transaction_id = in_transaction.id
             in_transaction.linked_transaction_id = out_transaction.id
 
+            # Real cash always moves in full on both legs (a transfer, by
+            # definition, physically moves money). debt_shift independently
+            # controls the liability effect: 0 for a plain move-my-own-money
+            # transfer, or the full amount for a debt settlement, moving
+            # credit from the receiver to the sender.
+            debt_shift = data.amount if data.affects_balance else 0.0
+
             s.add_all(
                 [
-                    AccountTransaction(
+                    Contribution(
                         account_id=from_account_id,
                         transaction_id=out_transaction.id,
-                        amount_requested=data.amount,
-                        amount_paid=data.amount,
-                        is_initial=True,
+                        real_amount=-data.amount,
+                        liability_amount=debt_shift,
                     ),
-                    AccountTransaction(
+                    Contribution(
                         account_id=data.to_account_id,
                         transaction_id=in_transaction.id,
-                        amount_requested=data.amount,
-                        amount_paid=data.amount,
-                        is_initial=True,
+                        real_amount=data.amount,
+                        liability_amount=-debt_shift,
                     ),
                 ]
             )

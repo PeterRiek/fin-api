@@ -101,8 +101,8 @@ def test_create_contribution_requires_owned_account(client, register_and_login):
         json={
             "account_id": bobs_account["id"],
             "transaction_id": transaction["id"],
-            "amount_requested": 10.0,
-            "amount_paid": 0.0,
+            "real_amount": 0.0,
+            "liability_amount": -10.0,
         },
         headers=alice_headers,
     )
@@ -123,9 +123,8 @@ def test_contribution_crud(client, register_and_login):
         json={
             "account_id": account["id"],
             "transaction_id": transaction["id"],
-            "amount_requested": 50.0,
-            "amount_paid": 50.0,
-            "is_initial": True,
+            "real_amount": -50.0,
+            "liability_amount": 0.0,
         },
         headers=headers,
     )
@@ -141,21 +140,20 @@ def test_contribution_crud(client, register_and_login):
         headers=headers,
     )
     assert response.status_code == 200
-    assert response.json()["amount_requested"] == 50.0
+    assert response.json()["real_amount"] == -50.0
 
     response = client.put(
         f"/split/transactions/{transaction['id']}/contributions/{account['id']}",
         json={
             "account_id": account["id"],
             "transaction_id": transaction["id"],
-            "amount_requested": 75.0,
-            "amount_paid": 25.0,
-            "is_initial": False,
+            "real_amount": -25.0,
+            "liability_amount": -25.0,
         },
         headers=headers,
     )
     assert response.status_code == 200
-    assert response.json()["amount_requested"] == 75.0
+    assert response.json()["real_amount"] == -25.0
 
     response = client.delete(
         f"/split/transactions/{transaction['id']}/contributions/{account['id']}",
