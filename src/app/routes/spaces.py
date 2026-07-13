@@ -109,7 +109,7 @@ def add_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space))
 
 @spaces_router.delete("/spaces/{space_id}/persons/{person_id}", status_code=204)
 def remove_space_person(person_id: int, space: SpaceOut = Depends(get_owned_space)):
-    if db.person_spaces.delete(space.id, person_id):
+    if db.person_spaces.delete(person_id, space.id):
         return
     raise HTTPException(status_code=500, detail="Failed to remove person from space")
 
