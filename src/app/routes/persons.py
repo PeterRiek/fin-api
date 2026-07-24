@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_db
 from app.routes.auth import get_current_user
-from app.routes.ownership import get_owned_person
+from app.routes.ownership import get_exclusively_owned_person, get_owned_person
 from app.schemas import PersonCreate, PersonOut, PersonSummaryOut, UserOut
 
 persons_router = APIRouter(prefix="/split", tags=["persons"])
@@ -28,7 +28,7 @@ def get_person(person: PersonOut = Depends(get_owned_person)):
 @persons_router.put("/persons/{person_id}")
 def update_person(
     person_data: PersonCreate,
-    person: PersonOut = Depends(get_owned_person),
+    person: PersonOut = Depends(get_exclusively_owned_person),
 ):
     updated_person = db.persons.update(person.id, person_data)
     if not updated_person:
@@ -37,7 +37,7 @@ def update_person(
 
 
 @persons_router.delete("/persons/{person_id}", status_code=204)
-def delete_person(person: PersonOut = Depends(get_owned_person)):
+def delete_person(person: PersonOut = Depends(get_exclusively_owned_person)):
     if db.persons.delete(person.id):
         return
     raise HTTPException(status_code=500, detail="Failed to delete person")

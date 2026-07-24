@@ -35,6 +35,18 @@ def get_owned_person(
     return person
 
 
+def get_exclusively_owned_person(
+    person: PersonOut = Depends(get_owned_person),
+    current_user: UserOut = Depends(get_current_user),
+) -> PersonOut:
+    if not db.persons.is_exclusive_to_user(person.id, current_user.id):
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot modify a person shared with another space",
+        )
+    return person
+
+
 def _find_user_account(user_id: int, account_id: int) -> AccountOut | None:
     accounts = db.accounts.get_by_user(user_id)
     return next((a for a in accounts if a.id == account_id), None)

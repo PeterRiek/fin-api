@@ -74,6 +74,52 @@ def test_get_person_missing_returns_404(client, register_and_login):
     assert response.status_code == 404
 
 
+def test_cannot_modify_or_delete_person_shared_with_another_space(
+    client, register_and_login
+):
+    alice_headers = register_and_login("alice")
+    alice_space = _create_space(client, alice_headers, "Alice's household")
+    grace = _create_person_in_space(client, alice_headers, alice_space["id"])
+
+    bob_headers = register_and_login("bob")
+    bob_space = _create_space(client, bob_headers, "Bob's household")
+    client.post(
+        f"/split/spaces/{bob_space['id']}/persons",
+        params={"person_id": grace["id"]},
+        headers=bob_headers,
+    )
+
+    response = client.put(
+        f"/split/persons/{grace['id']}",
+        json={"name": "hijacked"},
+        headers=bob_headers,
+    )
+    assert response.status_code == 403
+
+    response = client.delete(
+        f"/split/persons/{grace['id']}", headers=bob_headers
+    )
+    assert response.status_code == 403
+
+    # Grace is untouched and still visible to Alice.
+    response = client.get(f"/split/persons/{grace['id']}", headers=alice_headers)
+    assert response.status_code == 200
+    assert response.json()["name"] == "Grace"
+
+    # Once Bob removes Grace from his own space, she's exclusively Alice's
+    # again and Alice can freely rename/delete her.
+    client.delete(
+        f"/split/spaces/{bob_space['id']}/persons/{grace['id']}",
+        headers=bob_headers,
+    )
+    response = client.put(
+        f"/split/persons/{grace['id']}",
+        json={"name": "Grace H."},
+        headers=alice_headers,
+    )
+    assert response.status_code == 200
+
+
 def _contribute(
     client, headers, transaction_id, account_id, liability_amount, real_amount=0.0
 ):

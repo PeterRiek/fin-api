@@ -72,6 +72,22 @@ class PersonRepository(BaseRepository):
             s.delete(person)
             return True
 
+    def is_exclusive_to_user(self, person_id: int, user_id: int) -> bool:
+        with self.session() as s:
+            foreign_link = (
+                s.query(PersonSpace)
+                .filter(PersonSpace.person_id == person_id)
+                .filter(
+                    ~PersonSpace.space_id.in_(
+                        s.query(SpaceUser.space_id).filter(
+                            SpaceUser.user_id == user_id
+                        )
+                    )
+                )
+                .first()
+            )
+            return foreign_link is None
+
     def get_summary(self, person_id: int, user_id: int) -> PersonSummaryOut | None:
         with self.session() as s:
             person = s.query(Person).filter_by(id=person_id).first()
