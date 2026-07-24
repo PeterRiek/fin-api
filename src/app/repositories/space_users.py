@@ -35,6 +35,20 @@ class SpaceUserRepository(BaseRepository):
             space_user.is_owner = data.is_owner
             return SpaceUserOut.model_validate(space_user)
 
+    def exists(self, space_id: int, user_id: int) -> bool:
+        with self.session() as s:
+            return (
+                s.query(SpaceUser).filter_by(space_id=space_id, user_id=user_id).first()
+                is not None
+            )
+
+    def is_owner(self, space_id: int, user_id: int) -> bool:
+        with self.session() as s:
+            space_user = (
+                s.query(SpaceUser).filter_by(space_id=space_id, user_id=user_id).first()
+            )
+            return bool(space_user and space_user.is_owner)
+
     def delete(self, space_id: int, user_id: int) -> bool:
         with self.session() as s:
             space_user = (

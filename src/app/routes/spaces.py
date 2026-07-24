@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_db
 from app.routes.auth import get_current_user
-from app.routes.ownership import get_owned_space
+from app.routes.ownership import get_owned_space, get_owned_space_as_owner
 from app.schemas import (
     PersonBalanceOut,
     PersonSpaceCreate,
@@ -47,7 +47,7 @@ def get_space(space: SpaceOut = Depends(get_owned_space)):
 
 
 @spaces_router.delete("/spaces/{space_id}", status_code=204)
-def delete_space(space: SpaceOut = Depends(get_owned_space)):
+def delete_space(space: SpaceOut = Depends(get_owned_space_as_owner)):
     if db.spaces.delete(space.id):
         return
     raise HTTPException(status_code=500, detail="Failed to delete space")
@@ -73,7 +73,11 @@ def get_space_users(space: SpaceOut = Depends(get_owned_space)):
 
 
 @spaces_router.post("/spaces/{space_id}/users", status_code=201)
-def add_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
+def add_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space_as_owner)):
+    if db.space_users.exists(space.id, user_id):
+        raise HTTPException(
+            status_code=400, detail="User is already a member of this space"
+        )
     space_user_create = SpaceUserCreate(
         space_id=space.id, user_id=user_id, is_owner=False
     )
@@ -84,7 +88,19 @@ def add_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
 
 
 @spaces_router.delete("/spaces/{space_id}/users/{user_id}", status_code=204)
-def remove_space_user(user_id: int, space: SpaceOut = Depends(get_owned_space)):
+def remove_space_user(
+    user_id: int,
+    space: SpaceOut = Depends(get_owned_space),
+    current_user: UserOut = Depends(get_current_user),
+):
+    if db.space_users.is_owner(space.id, user_id):
+        raise HTTPException(status_code=403, detail="Cannot remove the space owner")
+    if user_id != current_user.id and not db.space_users.is_owner(
+        space.id, current_user.id
+    ):
+        raise HTTPException(
+            status_code=403, detail="Only the space owner can remove other users"
+        )
     if db.space_users.delete(space.id, user_id):
         return
     raise HTTPException(status_code=500, detail="Failed to remove user from space")

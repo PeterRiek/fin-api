@@ -26,6 +26,17 @@ def _find_user_person(user_id: int, person_id: int) -> PersonOut | None:
     return next((p for p in persons if p.id == person_id), None)
 
 
+def get_owned_space_as_owner(
+    space: SpaceOut = Depends(get_owned_space),
+    current_user: UserOut = Depends(get_current_user),
+) -> SpaceOut:
+    if not db.space_users.is_owner(space.id, current_user.id):
+        raise HTTPException(
+            status_code=403, detail="Only the space owner can perform this action"
+        )
+    return space
+
+
 def get_owned_person(
     person_id: int, current_user: UserOut = Depends(get_current_user)
 ) -> PersonOut:
