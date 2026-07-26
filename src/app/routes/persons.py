@@ -3,7 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.dependencies import get_db
 from app.routes.auth import get_current_user
 from app.routes.ownership import get_exclusively_owned_person, get_owned_person
-from app.schemas import PersonCreate, PersonOut, PersonSummaryOut, UserOut
+from app.schemas import (
+    PersonCreate,
+    PersonOut,
+    PersonSummaryOut,
+    TransactionDetailOut,
+    UserOut,
+)
 
 persons_router = APIRouter(prefix="/split", tags=["persons"])
 
@@ -47,7 +53,7 @@ def delete_person(person: PersonOut = Depends(get_exclusively_owned_person)):
 def get_person_transactions(
     person: PersonOut = Depends(get_owned_person),
     current_user: UserOut = Depends(get_current_user),
-):
+) -> list[TransactionDetailOut]:
     return db.transactions.get_by_person(person.id, current_user.id)
 
 

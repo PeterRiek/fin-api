@@ -1,11 +1,79 @@
+from collections import defaultdict
 from datetime import datetime
 
-from app.models import Account, Contribution, SpaceUser, Transaction
+from app.models import (
+    Account,
+    Category,
+    Contribution,
+    Person,
+    SpaceUser,
+    Transaction,
+    TransactionCategory,
+)
 from app.repositories.base import BaseRepository
-from app.schemas import TransactionCreate, TransactionOut
+from app.schemas import (
+    CategoryOut,
+    ContributionDetailOut,
+    TransactionCreate,
+    TransactionDetailOut,
+    TransactionOut,
+)
 
 
 class TransactionRepository(BaseRepository):
+    def _to_details(self, s, transactions: list[Transaction]) -> list[TransactionDetailOut]:
+        if not transactions:
+            return []
+        transaction_ids = [t.id for t in transactions]
+
+        contribution_rows = (
+            s.query(Contribution, Person.name)
+            .join(Account, Contribution.account_id == Account.id)
+            .join(Person, Account.person_id == Person.id)
+            .filter(Contribution.transaction_id.in_(transaction_ids))
+            .all()
+        )
+        contributions_by_transaction: dict[int, list[ContributionDetailOut]] = (
+            defaultdict(list)
+        )
+        for contribution, person_name in contribution_rows:
+            contributions_by_transaction[contribution.transaction_id].append(
+                ContributionDetailOut(
+                    account_id=contribution.account_id,
+                    person_name=person_name,
+                    real_amount=contribution.real_amount,
+                    liability_amount=contribution.liability_amount,
+                )
+            )
+
+        category_rows = (
+            s.query(TransactionCategory.transaction_id, Category)
+            .join(Category, Category.id == TransactionCategory.category_id)
+            .filter(TransactionCategory.transaction_id.in_(transaction_ids))
+            .all()
+        )
+        categories_by_transaction: dict[int, list[CategoryOut]] = defaultdict(list)
+        for transaction_id, category in category_rows:
+            categories_by_transaction[transaction_id].append(
+                CategoryOut.model_validate(category)
+            )
+
+        return [
+            TransactionDetailOut(
+                id=t.id,
+                space_id=t.space_id,
+                title=t.title,
+                description=t.description,
+                date=t.date,
+                type=t.type,
+                linked_transaction_id=t.linked_transaction_id,
+                created_at=t.created_at,
+                contributions=contributions_by_transaction.get(t.id, []),
+                categories=categories_by_transaction.get(t.id, []),
+            )
+            for t in transactions
+        ]
+
     def insert(self, data: TransactionCreate) -> TransactionOut:
         with self.session() as s:
             transaction = Transaction(
@@ -30,12 +98,12 @@ class TransactionRepository(BaseRepository):
             rows = s.query(Transaction).all()
             return [TransactionOut.model_validate(r) for r in rows]
 
-    def get_by_space(self, space_id: int) -> list[TransactionOut]:
+    def get_by_space(self, space_id: int) -> list[TransactionDetailOut]:
         with self.session() as s:
             rows = s.query(Transaction).filter_by(space_id=space_id).all()
-            return [TransactionOut.model_validate(r) for r in rows]
+            return self._to_details(s, rows)
 
-    def get_by_account(self, account_id: int) -> list[TransactionOut]:
+    def get_by_account(self, account_id: int) -> list[TransactionDetailOut]:
         with self.session() as s:
             rows = (
                 s.query(Transaction)
@@ -46,9 +114,11 @@ class TransactionRepository(BaseRepository):
                 .filter(Contribution.account_id == account_id)
                 .all()
             )
-            return [TransactionOut.model_validate(r) for r in rows]
+            return self._to_details(s, rows)
 
-    def get_by_person(self, person_id: int, user_id: int) -> list[TransactionOut]:
+    def get_by_person(
+        self, person_id: int, user_id: int
+    ) -> list[TransactionDetailOut]:
         with self.session() as s:
             rows = (
                 s.query(Transaction)
@@ -61,7 +131,7 @@ class TransactionRepository(BaseRepository):
                 .filter(Account.person_id == person_id, SpaceUser.user_id == user_id)
                 .all()
             )
-            return [TransactionOut.model_validate(r) for r in rows]
+            return self._to_details(s, rows)
 
     def update(
         self, transaction_id: int, data: TransactionCreate

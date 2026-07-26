@@ -262,7 +262,7 @@ class SpaceOverviewOut(BaseModel):
     users: list[UserOut]
     persons: list[PersonOut]
     transaction_count: int
-    recent_transactions: list[TransactionOut]
+    recent_transactions: list[TransactionDetailOut]
 
 
 class SpaceSummaryOut(BaseModel):

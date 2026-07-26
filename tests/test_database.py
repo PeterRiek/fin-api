@@ -6,11 +6,13 @@ from app.database import Database
 from app.schemas import (
     AccountCreate,
     ContributionCreate,
+    ContributionDetailOut,
     PersonCreate,
     PersonSpaceCreate,
     SpaceCreate,
     SpaceUserCreate,
     TransactionCreate,
+    TransactionDetailOut,
     UserCreate,
 )
 
@@ -205,10 +207,25 @@ def transaction_world(world):
 def test_transaction_crud(transaction_world):
     db = transaction_world["db"]
     space = transaction_world["space"]
+    person = transaction_world["person"]
+    account = transaction_world["account"]
     transaction = transaction_world["transaction"]
 
     assert db.transactions.get(transaction.id) == transaction
-    assert db.transactions.get_by_space(space.id) == [transaction]
+    assert db.transactions.get_by_space(space.id) == [
+        TransactionDetailOut(
+            **transaction.model_dump(),
+            contributions=[
+                ContributionDetailOut(
+                    account_id=account.id,
+                    person_name=person.name,
+                    real_amount=-50.0,
+                    liability_amount=0.0,
+                )
+            ],
+            categories=[],
+        )
+    ]
 
     updated = db.transactions.update(
         transaction.id,
@@ -229,8 +246,20 @@ def test_get_transactions_by_account_and_person(transaction_world):
     user = transaction_world["user"]
     transaction = transaction_world["transaction"]
 
-    assert db.transactions.get_by_account(account.id) == [transaction]
-    assert db.transactions.get_by_person(person.id, user.id) == [transaction]
+    expected = TransactionDetailOut(
+        **transaction.model_dump(),
+        contributions=[
+            ContributionDetailOut(
+                account_id=account.id,
+                person_name=person.name,
+                real_amount=-50.0,
+                liability_amount=0.0,
+            )
+        ],
+        categories=[],
+    )
+    assert db.transactions.get_by_account(account.id) == [expected]
+    assert db.transactions.get_by_person(person.id, user.id) == [expected]
 
 
 def test_account_transaction_crud(transaction_world):

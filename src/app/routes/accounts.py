@@ -64,7 +64,9 @@ def delete_account(account: AccountOut = Depends(get_owned_account)):
 
 
 @accounts_router.get("/accounts/{account_id}/transactions")
-def get_account_transactions(account: AccountOut = Depends(get_owned_account)):
+def get_account_transactions(
+    account: AccountOut = Depends(get_owned_account),
+) -> list[TransactionDetailOut]:
     return db.transactions.get_by_account(account.id)
 
 

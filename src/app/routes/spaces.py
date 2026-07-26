@@ -11,6 +11,7 @@ from app.schemas import (
     SpaceOverviewOut,
     SpaceSummaryOut,
     SpaceUserCreate,
+    TransactionDetailOut,
     UserOut,
 )
 
@@ -131,7 +132,9 @@ def remove_space_person(person_id: int, space: SpaceOut = Depends(get_owned_spac
 
 
 @spaces_router.get("/spaces/{space_id}/transactions")
-def get_space_transactions(space: SpaceOut = Depends(get_owned_space)):
+def get_space_transactions(
+    space: SpaceOut = Depends(get_owned_space),
+) -> list[TransactionDetailOut]:
     return db.transactions.get_by_space(space.id)
 
 
